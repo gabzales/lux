@@ -809,9 +809,14 @@
         }
     });
     document.addEventListener('keydown', e => { if (e.key==='Escape') closeAll(); });
+    // FIX layar hitam setelah tombol Back: klik link mem-fade body ke opacity 0 lalu pindah halaman; saat Back,
+    // browser memulihkan halaman dari cache (bfcache) dengan body MASIH opacity 0. Reset setiap halaman ditampilkan.
+    window.addEventListener('pageshow', () => { document.body.style.opacity = '1'; });
     document.addEventListener('click', e => {
+        // jangan bajak ctrl/cmd/shift-klik, klik tengah, atau link download (tab baru malah jadi hitam)
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button && e.button !== 0)) return;
         const a = e.target.closest('a[href]');
-        if (!a) return;
+        if (!a || a.hasAttribute('download')) return;
         const href = a.getAttribute('href');
         if (!href || href.startsWith('#') || href.startsWith('javascript') || a.target==='_blank') return;
         if (a.getAttribute('onclick') || e.defaultPrevented) return;

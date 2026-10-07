@@ -201,7 +201,10 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Strict-Transport-Security': 'max-age=31536000',
-    'Cache-Control': 'private, no-store'
+    // Halaman berisi key/sesi: no-store. Sisanya `private, no-cache` — tetap tak boleh disimpan CDN bersama, tapi
+    // browser masih boleh memakai cache back/forward (no-store membuat tombol Back selalu fetch ulang = lambat).
+    'Cache-Control': /^\/(invoice|cek-pesanan|dashboard|check-payment|admin|lx-secure-panel-7k|activate-key|profile|login|register)/.test(req.path)
+      ? 'private, no-store' : 'private, no-cache'
   });
   next();
 });
