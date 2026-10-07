@@ -2185,7 +2185,11 @@ app.post('/admin/product/add', requireAdmin, (req, res, next) => {
       } else {
         try {
           image = await db.uploadImage(require('fs').readFileSync(req.file.path), req.file.originalname, req.file.mimetype);
-        } catch { image = imgUrl?.trim() || '/images/placeholder.jpg'; }
+        } catch (e) {
+          // Dulu error ditelan & produk tersimpan "sukses" dengan gambar placeholder yang tidak ada → gambar kosong tanpa kabar.
+          if (imgUrl?.trim()) image = imgUrl.trim();
+          else return res.json({ success: false, message: 'Upload gambar gagal: ' + e.message });
+        }
       }
     }
     if (!image) image = '/images/placeholder.jpg';
@@ -2214,7 +2218,7 @@ app.post('/admin/product/edit/:id', requireAdmin, (req, res, next) => {
     if(keys!==undefined&&keys!==null){const nk=keys.split('\n').map(k=>k.trim()).filter(k=>k);product.keys=keysMode==='append'?[...(product.keys||[]),...nk]:nk;}
     if (req.file) {
       if (!isVercel) product.image=`/uploads/products/${req.file.filename}`;
-      else { try { product.image = await db.uploadImage(require('fs').readFileSync(req.file.path), req.file.originalname, req.file.mimetype); } catch {} }
+      else { try { product.image = await db.uploadImage(require('fs').readFileSync(req.file.path), req.file.originalname, req.file.mimetype); } catch (e) { return res.json({ success: false, message: 'Upload gambar gagal: ' + e.message }); } }
     }
     else if(imgUrl?.trim()) product.image=imgUrl.trim();
     await writeDB('products.json',products);res.json({success:true,product});

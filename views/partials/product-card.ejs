@@ -11,7 +11,7 @@
 <article class="pcard<%= _out ? ' out' : '' %>" data-name="<%= (product.name || '').toLowerCase() %>" data-cat="<%= product.category %>" data-plat="<%= _plats.join(',') %>">
     <a href="/buy/<%= product.id %>" class="pcard-img" aria-label="<%= product.name %>">
         <span class="pcard-ph"><iconify-icon icon="solar:gamepad-bold" style="font-size:34px;"></iconify-icon></span>
-        <% if (product.image) { %><img src="<%= product.image %>" alt="<%= product.name %>" loading="lazy" onerror="this.style.display='none'"><% } %>
+        <% if (product.image) { %><img src="<%= product.image %>" alt="<%= product.name %>" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.jpg'"><% } %>
         <span class="pcard-plats"><% _plats.forEach(p => { %><span class="pcard-plat"><%= _platLabel[p] || String(p).toUpperCase() %></span><% }) %></span>
         <% if (_out) { %><span class="pcard-soldout">STOK HABIS</span><% } %>
     </a>

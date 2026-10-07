@@ -49,7 +49,7 @@ const _jsSafe = v => JSON.stringify(v).replace(/</g, '\\u003c');
 
     <div class="buy-box overflow-hidden fade-in-up" style="padding:0;">
         <div class="relative buy-hero" style="background:var(--bg-section);">
-            <% if (product.image) { %><img src="<%= product.image %>" alt="<%= product.name %>" class="w-full h-full object-cover" onerror="this.style.display='none'"><% } else { %><div class="w-full h-full flex items-center justify-center"><iconify-icon icon="solar:gamepad-bold" style="font-size:48px;color:var(--text-3);"></iconify-icon></div><% } %>
+            <% if (product.image) { %><img src="<%= product.image %>" alt="<%= product.name %>" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='/images/placeholder.jpg'"><% } else { %><div class="w-full h-full flex items-center justify-center"><iconify-icon icon="solar:gamepad-bold" style="font-size:48px;color:var(--text-3);"></iconify-icon></div><% } %>
         </div>
         <div class="p-4">
             <h1 class="text-lg font-bold font-display leading-tight mb-2"><%= product.name %></h1>

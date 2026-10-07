@@ -200,25 +200,59 @@ const seedSupabase = async (client) => {
 
 
 // ── UPLOAD IMAGE ke Supabase Storage ─────────────────────
+const IMG_BUCKET = 'product-images';
+const BUCKET_OPTS = { public: true, fileSizeLimit: 5242880, allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'] };
+let bucketReady = false;
+
+// Pastikan bucket ada DAN public. Penyebab klasik "gambar produk tidak tampil": bucket belum dibuat
+// (supabase-schema.sql bagian Storage belum dijalankan) atau dibuat sebagai private.
+const ensureBucket = async (client) => {
+  if (bucketReady) return;
+  const { data, error } = await client.storage.getBucket(IMG_BUCKET);
+  if (error || !data) {
+    const { error: e2 } = await client.storage.createBucket(IMG_BUCKET, BUCKET_OPTS);
+    if (e2 && !/already exists|duplicate/i.test(e2.message || '')) {
+      throw new Error(`Bucket "${IMG_BUCKET}" tidak ada dan gagal dibuat otomatis (${e2.message}). Buat manual: Supabase → Storage → New bucket, nama persis "${IMG_BUCKET}", centang Public.`);
+    }
+  } else if (!data.public) {
+    const { error: e3 } = await client.storage.updateBucket(IMG_BUCKET, BUCKET_OPTS);
+    if (e3) throw new Error(`Bucket "${IMG_BUCKET}" masih PRIVATE sehingga gambar tidak akan tampil, dan gagal dijadikan public otomatis (${e3.message}). Set Public di Supabase → Storage.`);
+  }
+  bucketReady = true;
+};
+
 const uploadImage = async (fileBuffer, filename, contentType) => {
   const client = getClient();
-  if (!client) throw new Error('Supabase tidak terkonfigurasi');
+  if (!client) throw new Error('Supabase tidak terkonfigurasi (cek SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY)');
 
-  const cleanName = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-  const { data, error } = await client.storage
-    .from('product-images')
+  let bucketErr = null;
+  try { await ensureBucket(client); } catch (e) { bucketErr = e; }
+
+  const cleanName = `${Date.now()}-${String(filename || 'image').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  const { error } = await client.storage
+    .from(IMG_BUCKET)
     .upload(cleanName, fileBuffer, {
       contentType,
       upsert: false,
       cacheControl: '31536000' // nama file unik (timestamp) → aman di-cache 1 tahun, hemat egress Storage
     });
 
-  if (error) throw new Error('Gagal upload: ' + error.message);
+  if (error) throw (bucketErr || new Error('Gagal upload: ' + error.message));
 
-  const { data: { publicUrl } } = client.storage
-    .from('product-images')
-    .getPublicUrl(cleanName);
+  const { data: { publicUrl } } = client.storage.from(IMG_BUCKET).getPublicUrl(cleanName);
 
+  // Verifikasi URL publik benar-benar bisa dibuka — jangan simpan URL gambar yang mati.
+  if (typeof fetch === 'function') {
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 5000);
+      const r = await fetch(publicUrl, { method: 'HEAD', signal: ctl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error(`Gambar terunggah tapi URL publiknya tidak bisa dibuka (HTTP ${r.status}). Pastikan bucket "${IMG_BUCKET}" berstatus Public di Supabase → Storage.`);
+    } catch (e) {
+      if (/URL publiknya/.test(e.message)) throw e; // timeout/jaringan: abaikan, jangan blokir upload
+    }
+  }
   return publicUrl;
 };
 
