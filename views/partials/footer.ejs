@@ -1,0 +1,71 @@
+<!-- FOOTER -->
+<%
+  const _c = settings.contact || {};
+  const _social = [];
+  if (_c.waChannel) _social.push({ href: 'https://whatsapp.com/channel/' + _c.waChannel, icon: 'mdi:bullhorn', label: 'Saluran WhatsApp' });
+  if (_c.whatsapp)  _social.push({ href: 'https://wa.me/' + _c.whatsapp, icon: 'mdi:whatsapp', label: 'WhatsApp admin' });
+  if (_c.telegram)  _social.push({ href: 'https://t.me/' + _c.telegram, icon: 'mdi:telegram', label: 'Telegram' });
+  if (_c.tiktok)    _social.push({ href: 'https://tiktok.com/@' + _c.tiktok, icon: 'ic:baseline-tiktok', label: 'TikTok' });
+%>
+<footer class="border-t" style="border-color:var(--border);background:var(--bg-section);">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 pt-10 pb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-8">
+            <div class="col-span-2 sm:col-span-1">
+                <div class="mb-3"><%- include('logo', { h: 44 }) %></div>
+                <p class="text-sm leading-relaxed mb-4" style="color:var(--text-2);max-width:260px;">Key lisensi dan produk digital untuk game favoritmu. Pembayaran QRIS, dicek langsung oleh admin.</p>
+                <% if (_social.length) { %>
+                <div class="flex gap-2 flex-wrap">
+                    <% _social.forEach(sc => { %><a href="<%= sc.href %>" target="_blank" rel="noopener" aria-label="<%= sc.label %>" class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.07);color:var(--text-2);"><iconify-icon icon="<%= sc.icon %>" style="font-size:18px;"></iconify-icon></a><% }) %>
+                </div>
+                <% } %>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold mb-3" style="color:var(--text-1);">Menu Utama</h4>
+                <div class="space-y-2.5 text-sm" style="color:var(--text-2);">
+                    <a href="/" class="block hover:text-white">Beranda</a>
+                    <a href="/products" class="block hover:text-white">Semua Produk</a>
+                    <a href="/cek-pesanan" class="block hover:text-white">Lacak Pesanan</a>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold mb-3" style="color:var(--text-1);">Bantuan</h4>
+                <div class="space-y-2.5 text-sm" style="color:var(--text-2);">
+                    <% if (_c.whatsapp) { %><a href="https://wa.me/<%= _c.whatsapp %>" target="_blank" rel="noopener" class="block hover:text-white">Hubungi Admin</a><% } %>
+                    <a href="/#faq" class="block hover:text-white">FAQ &amp; Pertanyaan</a>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold mb-3" style="color:var(--text-1);">Akun</h4>
+                <div class="space-y-2.5 text-sm" style="color:var(--text-2);">
+                    <% if (user) { %><a href="/dashboard" class="block hover:text-white">Dashboard</a><% } else { %>
+                    <a href="/login" class="block hover:text-white">Login</a>
+                    <a href="/register" class="block hover:text-white">Daftar Baru</a><% } %>
+                </div>
+            </div>
+        </div>
+        <div class="border-t pt-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs" style="border-color:var(--border);color:var(--text-3);">
+            <span>&copy; 2026 <%= settings.siteName || 'Luxzco' %>. All rights reserved.</span>
+            <button id="install-app-btn" type="button" class="hidden items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-bold" style="border:1px solid rgba(34,211,238,.45);background:rgba(6,182,212,.12);color:var(--blue);">
+                <iconify-icon icon="mdi:download-outline" style="font-size:15px;"></iconify-icon>Install Aplikasi
+            </button>
+            <span class="hidden sm:block" style="width:120px;"></span>
+        </div>
+    </div>
+</footer>
+<script>
+(function(){
+    const btn=document.getElementById('install-app-btn'); if(!btn) return;
+    let dp=null;
+    const show=()=>{ btn.classList.remove('hidden'); btn.classList.add('inline-flex'); };
+    const hide=()=>{ btn.classList.add('hidden'); btn.classList.remove('inline-flex'); };
+    const standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+    const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); dp=e; if(!standalone) show(); });
+    window.addEventListener('appinstalled',hide);
+    if(isIOS && !standalone) show();
+    btn.addEventListener('click',async()=>{
+        if(dp){ dp.prompt(); try{ await dp.userChoice; }catch{} dp=null; hide(); }
+        else if(isIOS){ alert('Di Safari: ketuk tombol Bagikan, lalu pilih "Tambah ke Layar Utama".'); }
+    });
+})();
+</script>

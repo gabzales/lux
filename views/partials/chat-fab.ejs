@@ -1,0 +1,105 @@
+<!-- FLOATING CHAT FAB -->
+<div id="fab-container" class="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end">
+
+    <!-- Expandable pill menu -->
+    <div id="fab-menu" class="flex flex-col items-end gap-2.5 mb-3">
+        <% if (settings.contact?.tiktok) { %>
+        <a href="https://tiktok.com/@<%= settings.contact.tiktok %>" target="_blank" class="fab-pill" style="transition-delay:.02s">
+            <span class="fab-pill-label">Chat via TikTok</span>
+            <span class="fab-pill-icon" style="background:linear-gradient(135deg,#0891b2,#06b6d4);">
+                <iconify-icon icon="ic:baseline-tiktok" style="color:#09090b;font-size:16px;"></iconify-icon>
+            </span>
+        </a>
+        <% } %>
+        <% if (settings.contact?.waChannel) { %>
+        <a href="https://whatsapp.com/channel/<%= settings.contact.waChannel %>" target="_blank" rel="noopener" class="fab-pill" style="transition-delay:.06s">
+            <span class="fab-pill-label">Chat via Channel WA</span>
+            <span class="fab-pill-icon" style="background:#0e7490;">
+                <iconify-icon icon="mdi:whatsapp" style="color:#fff;font-size:18px;"></iconify-icon>
+            </span>
+        </a>
+        <% } %>
+        <% if (settings.contact?.telegram) { %>
+        <a href="https://t.me/<%= settings.contact.telegram %>" target="_blank" rel="noopener" class="fab-pill" style="transition-delay:.08s">
+            <span class="fab-pill-label">Chat via Telegram</span>
+            <span class="fab-pill-icon" style="background:#229ED9;">
+                <iconify-icon icon="mdi:telegram" style="color:#fff;font-size:18px;"></iconify-icon>
+            </span>
+        </a>
+        <% } %>
+        <% if (settings.contact?.whatsapp) { %>
+        <a href="https://wa.me/<%= settings.contact.whatsapp %>" target="_blank" class="fab-pill" style="transition-delay:.1s">
+            <span class="fab-pill-label">Chat via WhatsApp</span>
+            <span class="fab-pill-icon" style="background:#22c55e;">
+                <iconify-icon icon="mdi:whatsapp" style="color:#fff;font-size:18px;"></iconify-icon>
+            </span>
+        </a>
+        <% } %>
+    </div>
+
+    <!-- Main toggle button -->
+    <button id="fab-toggle" onclick="toggleFab()" aria-label="Buka menu chat" class="fab-main">
+        <iconify-icon icon="solar:chat-round-dots-bold" id="fab-icon-chat" class="fab-icon"></iconify-icon>
+        <iconify-icon icon="mdi:close" id="fab-icon-close" class="fab-icon" style="position:absolute;opacity:0;transform:rotate(-90deg) scale(.5);"></iconify-icon>
+    </button>
+</div>
+
+<style>
+#fab-menu{ pointer-events:none; }
+#fab-menu .fab-pill{
+    pointer-events:none;
+    display:flex; align-items:center; gap:10px;
+    background:rgba(10,17,24,.92);
+    backdrop-filter: blur(10px);
+    border:1px solid rgba(6,182,212,.18);
+    padding:8px 8px 8px 16px;
+    border-radius:999px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    opacity:0; transform:translateY(14px) scale(.85);
+    transition: opacity .28s ease, transform .28s cubic-bezier(.34,1.56,.64,1);
+    text-decoration:none;
+}
+#fab-container.fab-open #fab-menu .fab-pill{
+    pointer-events:auto;
+    opacity:1; transform:translateY(0) scale(1);
+}
+.fab-pill-label{ color:#EAFDFF; font-size:13px; font-weight:600; white-space:nowrap; }
+.fab-pill-icon{
+    width:30px; height:30px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+}
+.fab-main{
+    position:relative;
+    width:56px; height:56px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#0891b2,#06b6d4);
+    box-shadow:0 4px 24px rgba(6,182,212,.5);
+    border:none; cursor:pointer;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
+}
+.fab-main:hover{ transform:scale(1.08); box-shadow:0 6px 30px rgba(6,182,212,.65); }
+.fab-main:active{ transform:scale(.94); }
+#fab-container.fab-open .fab-main{
+    background:#111113;
+    box-shadow:0 4px 20px rgba(0,0,0,.5);
+}
+.fab-icon{
+    font-size:26px; color:#09090b;
+    transition: opacity .25s ease, transform .35s cubic-bezier(.34,1.56,.64,1);
+}
+#fab-container.fab-open #fab-icon-chat{ opacity:0; transform:rotate(90deg) scale(.5); }
+#fab-container.fab-open #fab-icon-close{ opacity:1 !important; transform:rotate(0) scale(1) !important; color:#EAFDFF; }
+</style>
+
+<script>
+    function toggleFab() {
+        document.getElementById('fab-container').classList.toggle('fab-open');
+    }
+    document.addEventListener('click', function(e) {
+        const fab = document.getElementById('fab-container');
+        if (fab && fab.classList.contains('fab-open') && !fab.contains(e.target)) {
+            fab.classList.remove('fab-open');
+        }
+    });
+</script>

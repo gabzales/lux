@@ -1,0 +1,19 @@
+# ── Rahasia: JANGAN PERNAH di-commit ──
+.env
+.env.*
+!.env.example
+
+# ── Backup DB lokal (berisi hash admin + SEMUA key produk + data transaksi) ──
+database/
+/tmp/
+
+# ── Upload runtime lokal (foto produk/avatar yang diunggah saat dev) ──
+public/uploads/products/
+public/uploads/avatars/
+public/uploads/qris-static.*
+
+# ── Lainnya ──
+node_modules/
+.vercel/
+*.log
+.DS_Store

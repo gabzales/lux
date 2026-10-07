@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<title>Reseller VIP — <%= settings.siteName %></title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html{height:100%;width:100%;max-width:100%;overflow-x:hidden;background:#09090b;}
+:root{
+    --bg-main:#09090b;
+    --bg-card:#111113;
+    --bg-hover:#18181b;
+    --border:rgba(255,255,255,0.07);
+    --border-md:rgba(255,255,255,0.12);
+    --blue:#22d3ee;
+    --royal:#06b6d4;
+    --on-accent:#09090b;
+    --blue-dim:rgba(6,182,212,0.12);
+    --green:#22c55e;
+    --text-1:#fafafa;
+    --text-2:#a1a1aa;
+    --text-3:#71717a;
+}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg-main);color:var(--text-1);min-height:100dvh;width:100%;max-width:100%;overflow-x:hidden;position:relative;padding-bottom:40px;-webkit-font-smoothing:antialiased;}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideInBottom{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.fade-in-up{animation:fadeInUp .3s ease-out both;}
+.animate-spin{animation:spin 1s linear infinite;}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;}
+.hm-input{width:100%;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border-md);color:var(--text-1);font-size:13px;transition:border-color .15s;font-family:'Plus Jakarta Sans',sans-serif;}
+.hm-input:focus{outline:none;border-color:rgba(6,182,212,.5);background:rgba(6,182,212,.05);}
+.benefit-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.benefit-row:last-child{border-bottom:none;}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--royal);color:var(--on-accent);font-weight:700;font-size:13px;border-radius:8px;cursor:pointer;border:none;transition:opacity .15s;}
+.btn-primary:hover{opacity:.88;}
+.btn-primary:active{opacity:.7;transform:scale(.97);}
+#toast-wrap{position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+.toast-item{padding:10px 14px;border-radius:10px;background:var(--bg-card);font-size:12px;max-width:280px;border:1px solid var(--border-md);color:var(--text-1);}
+.toast-success{border-color:rgba(34,197,94,.35);color:#4ade80;}
+.toast-error{border-color:rgba(239,68,68,.35);color:#f87171;}
+</style>
+</head>
+<body>
+<div id="toast-wrap"></div>
+
+<!-- NAVBAR -->
+<nav style="position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(5,7,13,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);">
+    <div style="max-width:640px;margin:0 auto;padding:0 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;height:56px;">
+            <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
+                <%- include('../partials/logo', { h: 34 }) %>
+            </a>
+            <a href="/" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);padding:6px 12px;border-radius:8px;border:1px solid var(--border);text-decoration:none;" onmouseover="this.style.color='var(--text-1)';this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.color='var(--text-2)';this.style.background='transparent'">
+                <iconify-icon icon="mdi:arrow-left" style="font-size:14px;"></iconify-icon> Kembali
+            </a>
+        </div>
+    </div>
+</nav>
+
+<div style="min-height:100dvh;padding-top:64px;padding-bottom:40px;padding-left:16px;padding-right:16px;">
+<div style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:12px;">
+
+<!-- ── HERO ── -->
+<div class="card fade-in-up" style="margin-top:16px;border-color:rgba(6,182,212,.25);">
+    <div style="height:3px;background:var(--royal);border-radius:12px 12px 0 0;"></div>
+    <div style="padding:24px;text-align:center;">
+        <div style="width:56px;height:56px;border-radius:14px;background:var(--blue-dim);border:1px solid rgba(6,182,212,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <iconify-icon icon="mdi:crown" style="color:var(--blue);font-size:26px;"></iconify-icon>
+        </div>
+        <div style="font-size:16px;font-weight:800;color:var(--text-1);letter-spacing:.02em;margin-bottom:8px;">RESELLER VIP</div>
+        <p style="font-size:13px;color:var(--text-2);line-height:1.6;max-width:320px;margin:0 auto;">
+            <%= settings.resellerNote || 'Bergabung dan nikmati harga eksklusif untuk semua produk.' %>
+        </p>
+    </div>
+</div>
+
+<% if (user && user.is_reseller) { %>
+<!-- ── SUDAH RESELLER ── -->
+<div class="card fade-in-up" style="padding:24px;text-align:center;border-color:rgba(34,197,94,.2);">
+    <iconify-icon icon="mdi:check-decagram" style="font-size:36px;color:#4ade80;display:block;margin:0 auto 12px;"></iconify-icon>
+    <div style="font-size:15px;font-weight:800;color:#4ade80;margin-bottom:6px;">Kamu sudah Reseller VIP!</div>
+    <p style="font-size:12px;color:var(--text-3);margin-bottom:16px;">Diskon <strong style="color:var(--blue);"><%= settings.resellerDiscount || 20 %>%</strong> aktif otomatis di semua pembelian.</p>
+    <% if (user.reseller_code) { %>
+    <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;background:var(--blue-dim);border:1px solid rgba(6,182,212,.3);font-family:monospace;font-size:14px;font-weight:800;color:var(--blue);margin-bottom:6px;">
+        <iconify-icon icon="mdi:identifier" style="font-size:16px;"></iconify-icon>
+        <%= user.reseller_code %>
+    </div>
+    <p style="font-size:10px;color:var(--text-3);">Kode identitas reseller kamu</p>
+    <% } %>
+    <a href="/" class="btn-primary" style="margin-top:20px;padding:10px 24px;font-size:13px;text-decoration:none;">
+        <iconify-icon icon="mdi:shopping" style="font-size:15px;"></iconify-icon> Belanja Sekarang
+    </a>
+</div>
+
+<% } else { %>
+<!-- ── BENEFIT LIST ── -->
+<div class="card fade-in-up" style="padding:20px;">
+    <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px;">Keuntungan Bergabung</div>
+
+    <div class="benefit-row">
+        <div style="width:36px;height:36px;border-radius:9px;background:var(--blue-dim);border:1px solid rgba(6,182,212,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <iconify-icon icon="mdi:tag-multiple" style="color:var(--blue);font-size:16px;"></iconify-icon>
+        </div>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-1);">Diskon <span style="color:var(--blue);"><%= settings.resellerDiscount || 20 %>%</span> Otomatis Semua Produk</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Harga reseller langsung terpotong tanpa perlu input kode apapun.</div>
+        </div>
+    </div>
+
+    <div class="benefit-row">
+        <div style="width:36px;height:36px;border-radius:9px;background:var(--blue-dim);border:1px solid rgba(6,182,212,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <iconify-icon icon="mdi:lightning-bolt" style="color:var(--blue);font-size:16px;"></iconify-icon>
+        </div>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-1);">Harga Langsung Terpotong di Checkout</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Harga normal dicoret, harga reseller tampil di setiap pilihan paket.</div>
+        </div>
+    </div>
+
+    <div class="benefit-row">
+        <div style="width:36px;height:36px;border-radius:9px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <iconify-icon icon="mdi:identifier" style="color:#4ade80;font-size:16px;"></iconify-icon>
+        </div>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-1);">Kode Reseller Unik</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Kode identitas reseller sebagai tanda keanggotaan VIP.</div>
+        </div>
+    </div>
+
+    <div class="benefit-row">
+        <div style="width:36px;height:36px;border-radius:9px;background:var(--blue-dim);border:1px solid rgba(6,182,212,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <iconify-icon icon="mdi:crown" style="color:var(--blue);font-size:16px;"></iconify-icon>
+        </div>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-1);">Badge VIP di Profil & Leaderboard</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Status VIP tampil di badge profil dan halaman admin.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── HARGA & BAYAR ── -->
+<div class="card fade-in-up" style="padding:24px;">
+    <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Biaya Keanggotaan Reseller VIP</div>
+        <div style="font-size:36px;font-weight:900;color:var(--text-1);line-height:1;margin-bottom:6px;">
+            Rp <%= (settings.resellerPrice || 50000).toLocaleString('id-ID') %>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);">Bayar sekali · Diskon <strong style="color:var(--blue);"><%= settings.resellerDiscount || 20 %>%</strong> berlaku selamanya</div>
+    </div>
+
+    <% if (!user) { %>
+    <a href="/login?redirect=/reseller" class="btn-primary" style="width:100%;padding:13px;font-size:14px;border-radius:10px;text-decoration:none;">
+        <iconify-icon icon="mdi:login" style="font-size:16px;"></iconify-icon> Login untuk Bergabung
+    </a>
+    <p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:10px;">Belum punya akun? <a href="/register" style="color:var(--blue);text-decoration:none;">Daftar gratis</a></p>
+    <% } else { %>
+    <button id="joinBtn" onclick="handleJoin()" class="btn-primary" style="width:100%;padding:13px;font-size:14px;border-radius:10px;">
+        <iconify-icon icon="mdi:crown" style="font-size:16px;"></iconify-icon> Daftar Sekarang — Bayar via QRIS
+    </button>
+    <% } %>
+</div>
+
+<% } %>
+</div>
+</div>
+
+<!-- ── PAYMENT MODAL ── -->
+<div id="payModal" style="position:fixed;inset:0;z-index:9999;display:none;">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(4px);" onclick="closePayment()"></div>
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;pointer-events:none;">
+        <div style="pointer-events:auto;background:var(--bg-card);border-top:1px solid var(--border);border-radius:20px 20px 0 0;max-height:90dvh;overflow-y:auto;animation:slideInBottom .28s ease-out both;padding-bottom:calc(24px + env(safe-area-inset-bottom));">
+            <div style="height:1px;background:var(--border-md);border-radius:20px 20px 0 0;"></div>
+            <div style="display:flex;justify-content:center;padding:12px 0 4px;"><div style="width:36px;height:4px;border-radius:4px;background:rgba(255,255,255,.12);"></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);">
+                <span style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:6px;">
+                    <iconify-icon icon="mdi:qrcode-scan" style="color:var(--blue);font-size:16px;"></iconify-icon>
+                    Pembayaran QRIS
+                </span>
+                <button onclick="closePayment()" style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text-2);cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                    <iconify-icon icon="mdi:close" style="font-size:16px;"></iconify-icon>
+                </button>
+            </div>
+            <div style="padding:20px;text-align:center;">
+                <div id="qrCodeWrap" style="display:flex;justify-content:center;margin-bottom:16px;">
+                    <iconify-icon icon="mdi:loading" style="font-size:32px;color:var(--blue);" class="animate-spin"></iconify-icon>
+                </div>
+                <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;">
+                    <div style="font-size:10px;color:var(--text-3);margin-bottom:4px;">Kode Pesanan</div>
+                    <div id="orderCodeShow" style="font-size:16px;font-family:monospace;font-weight:800;color:var(--blue);letter-spacing:.1em;">—</div>
+                </div>
+                <div id="payAmountShow" style="font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:12px;"></div>
+                <div id="payStatusRow" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+                    <div style="width:8px;height:8px;border-radius:50%;background:#fbbf24;"></div>
+                    <span style="font-size:12px;color:var(--text-2);">Menunggu pembayaran...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let payInterval = null, payStopped = false, payTick = 0;
+
+function showToast(msg, type='info') {
+    const wrap = document.getElementById('toast-wrap');
+    const el = document.createElement('div');
+    el.className = `toast-item toast-${type}`;
+    el.textContent = msg;
+    wrap.appendChild(el);
+    setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3500);
+}
+
+async function handleJoin() {
+    const btn = document.getElementById('joinBtn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<iconify-icon icon="mdi:loading" style="font-size:16px;" class="animate-spin"></iconify-icon> Membuat pesanan...';
+    try {
+        const res = await fetch('/reseller/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        });
+        const data = await res.json();
+        if (data.success) {
+            showPaymentModal(data.qrString, data.orderCode, data.refId, data.isStatic, data.qrisStaticImage, data.totalPayment || <%= settings.resellerPrice || 50000 %>);
+        } else {
+            showToast(data.message || 'Gagal membuat pesanan', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<iconify-icon icon="mdi:crown" style="font-size:16px;"></iconify-icon> Daftar Sekarang — Bayar via QRIS';
+        }
+    } catch(e) {
+        showToast('Koneksi error', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<iconify-icon icon="mdi:crown" style="font-size:16px;"></iconify-icon> Daftar Sekarang — Bayar via QRIS';
+    }
+}
+
+function showPaymentModal(qrString, code, refId, isStatic, staticImg, amount) {
+    document.getElementById('payModal').style.display = 'block';
+    document.getElementById('orderCodeShow').textContent = code;
+    document.getElementById('payAmountShow').textContent = 'Total: Rp ' + (amount||0).toLocaleString('id-ID');
+    document.body.style.overflow = 'hidden';
+
+    if (isStatic && staticImg) {
+        document.getElementById('qrCodeWrap').innerHTML =
+            `<div style="background:#fff;padding:12px;border-radius:12px;display:inline-block;">
+                <img src="${staticImg}" style="display:block;max-width:200px;max-height:200px;object-fit:contain;border-radius:4px;">
+             </div>`;
+        document.getElementById('payStatusRow').innerHTML =
+            '<iconify-icon icon="mdi:information-outline" style="color:#fbbf24;font-size:16px;"></iconify-icon><span style="font-size:12px;color:var(--text-2);">Konfirmasi ke admin via WA/Telegram</span>';
+    } else if (qrString) {
+        document.getElementById('qrCodeWrap').innerHTML =
+            `<div style="background:#fff;padding:12px;border-radius:12px;display:inline-block;">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data=${encodeURIComponent(qrString)}"
+                     style="display:block;width:200px;height:200px;border-radius:4px;">
+             </div>`;
+    } else {
+        document.getElementById('qrCodeWrap').innerHTML =
+            `<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-3);">QRIS belum dikonfigurasi. Hubungi admin.</div>`;
+    }
+
+    if (refId && !isStatic) {
+        // Polling bertahap (3s → 8s → 15s), dijeda saat tab tersembunyi — dulu tetap tiap 3 detik tanpa henti.
+        payStopped = false; payTick = 0;
+        const payLoop = () => {
+            payTick++;
+            const wait = payTick <= 10 ? 3000 : (payTick <= 24 ? 8000 : 15000);
+            payInterval = setTimeout(async () => {
+                if (payStopped) return;
+                if (!document.hidden) await checkPay(refId);
+                if (!payStopped) payLoop();
+            }, wait);
+        };
+        payLoop();
+    }
+}
+
+async function checkPay(refId) {
+    try {
+        const r = await fetch(`/check-payment/${refId}`);
+        const d = await r.json();
+        if (d.success && d.status === 'done') {
+            payStopped = true; clearTimeout(payInterval);
+            document.getElementById('payStatusRow').innerHTML =
+                '<iconify-icon icon="mdi:check-circle" style="color:#4ade80;font-size:20px;"></iconify-icon><span style="font-size:13px;font-weight:700;color:#4ade80;">Pembayaran berhasil!</span>';
+            showToast('Selamat! Kamu sekarang Reseller VIP!', 'success');
+            setTimeout(() => { closePayment(); window.location.reload(); }, 2000);
+        } else if (d.status === 'expired') {
+            payStopped = true; clearTimeout(payInterval);
+        }
+    } catch(e) {}
+}
+
+function closePayment() {
+    payStopped = true; if (payInterval) clearTimeout(payInterval);
+    document.getElementById('payModal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+</script>
+</body>
+</html>

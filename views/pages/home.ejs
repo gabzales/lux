@@ -1,0 +1,268 @@
+
+<%
+const pageTitle = 'Beranda';
+%>
+
+<!-- NAVBAR -->
+<%- include('../partials/nav', { active: 'home' }) %>
+
+<!-- BANNER CAROUSEL -->
+<section id="home" class="pt-16">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 pt-4">
+        <div id="carousel-wrap" class="relative overflow-hidden select-none">
+            <div id="carousel-track" class="flex h-full">
+                <div class="c-slide" id="c-slide-default">
+                    <div class="c-fallback">
+                        <%- include('../partials/logo', { h: 96 }) %>
+                        <a href="/products" class="btn btn-primary btn-pill px-6 py-2.5 text-sm mt-4">Lihat Produk</a>
+                    </div>
+                </div>
+            </div>
+            <div id="carousel-dots" class="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20"><div class="c-dot active"></div></div>
+        </div>
+    </div>
+</section>
+
+<!-- TICKER (teks berjalan; atur dari Admin → Pengaturan → marqueeText, pisahkan dengan |) -->
+<%
+  const _tickerRaw = (settings.marqueeText || '').split('|').map(t => t.trim()).filter(Boolean);
+  const _ticker = _tickerRaw.length > 1 ? _tickerRaw : ['Bayar mudah via QRIS','Pesanan dikonfirmasi langsung oleh admin','Key tampil di halaman Cek Pesanan','Stok diperbarui langsung oleh admin'];
+%>
+<div class="ticker-wrap overflow-hidden mt-4 border-y" style="border-color:rgba(34,211,238,.25);background:rgba(6,182,212,.10);" aria-label="Info toko">
+    <div class="ticker-track flex whitespace-nowrap py-2.5" style="width:max-content;">
+        <% for (let r = 0; r < 4; r++) { %>
+        <div class="flex items-center flex-shrink-0">
+            <% _ticker.forEach(t => { %><span class="text-xs font-semibold px-6" style="color:var(--text-1);"><%= t %></span><span style="color:var(--blue);font-size:9px;">&#9670;</span><% }) %>
+        </div>
+        <% } %>
+    </div>
+</div>
+
+<style>
+#carousel-wrap{border-radius:18px;background:var(--bg-section);aspect-ratio:2/1;}
+@media(min-width:640px){#carousel-wrap{aspect-ratio:16/5;}}
+#carousel-track{transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform;}
+#carousel-track .c-slide{flex:0 0 100%;width:100%;height:100%;position:relative;overflow:hidden;background:linear-gradient(135deg,#06b6d4 0%,#0e7490 55%,#083344 100%);}
+#carousel-track .c-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+#carousel-track .c-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#carousel-track .c-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(5,7,13,.72) 0%,rgba(5,7,13,.25) 55%,rgba(5,7,13,0) 100%);}
+#carousel-track .c-body{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;justify-content:center;padding:clamp(14px,4vw,40px) clamp(16px,6vw,56px);max-width:70%;}
+#carousel-track .c-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:clamp(16px,3.6vw,34px);color:#fff;line-height:1.15;}
+#carousel-track .c-sub{font-size:clamp(10px,1.6vw,14px);color:rgba(255,255,255,.85);margin-top:6px;line-height:1.45;}
+.c-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);transition:all .3s;cursor:pointer;flex-shrink:0;}
+.c-dot.active{width:22px;border-radius:4px;background:#fff;}
+</style>
+
+<script>
+(function(){
+    let slides=[], cur=0, total=1, timer=null;
+    const INTERVAL=4500;
+    const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const safeLink=l=>/^(\/(?!\/)|https?:\/\/)/.test(l||'')?l:'';
+
+    async function initCarousel(){
+        try{ const r=await fetch('/api/banners'); slides=await r.json(); }catch{ slides=[]; }
+        if(!Array.isArray(slides)||!slides.length){ total=1; return; }
+        const track=document.getElementById('carousel-track');
+        const dotsEl=document.getElementById('carousel-dots');
+        document.getElementById('c-slide-default')?.remove();
+        track.innerHTML=slides.map((s,i)=>{
+            const link=safeLink(s.link); const hl=link&&link!=='/'; const hasText=!!(s.title||s.subtitle);
+            return `<div class="c-slide"${hl?` data-link="${esc(link)}" style="cursor:pointer"`:''}>
+                <img class="c-img" src="${esc(s.imageUrl)}" alt="${esc(s.title||'Banner')}" loading="${i===0?'eager':'lazy'}" onerror="this.style.display='none'">
+                ${hasText?`<div class="c-overlay"></div><div class="c-body">${s.title?`<div class="c-title">${esc(s.title)}</div>`:''}${s.subtitle?`<div class="c-sub">${esc(s.subtitle)}</div>`:''}</div>`:''}
+            </div>`;
+        }).join('');
+        track.querySelectorAll('.c-slide[data-link]').forEach(el=>el.addEventListener('click',()=>{ window.location=el.dataset.link; }));
+        total=slides.length;
+        dotsEl.innerHTML=slides.map((_,i)=>`<div class="c-dot${i===0?' active':''}" data-i="${i}"></div>`).join('');
+        dotsEl.querySelectorAll('.c-dot').forEach(d=>d.addEventListener('click',()=>{ goSlide(+d.dataset.i); resetAuto(); }));
+        if(total>1){ startAuto(); addSwipe(); }
+        goSlide(0);
+    }
+    function goSlide(idx){
+        if(total<=1)return;
+        cur=((idx%total)+total)%total;
+        document.getElementById('carousel-track').style.transform=`translateX(-${cur*100}%)`;
+        document.querySelectorAll('.c-dot').forEach((d,i)=>d.classList.toggle('active',i===cur));
+    }
+    function startAuto(){ clearInterval(timer); timer=setInterval(()=>goSlide(cur+1),INTERVAL); }
+    function resetAuto(){ clearInterval(timer); startAuto(); }
+    function addSwipe(){
+        const w=document.getElementById('carousel-wrap');
+        w.addEventListener('mouseenter',()=>clearInterval(timer));
+        w.addEventListener('mouseleave',()=>startAuto());
+        w.addEventListener('touchstart',e=>{ clearInterval(timer); w.dataset.tx=e.touches[0].clientX; },{passive:true});
+        w.addEventListener('touchend',e=>{
+            const dx=e.changedTouches[0].clientX-(parseFloat(w.dataset.tx)||0);
+            if(Math.abs(dx)>38)goSlide(cur+(dx<0?1:-1));
+            startAuto();
+        },{passive:true});
+    }
+    document.addEventListener('DOMContentLoaded',initCarousel);
+})();
+</script>
+
+<!-- PRODUCTS -->
+<section id="games" class="relative py-8 sm:py-12">
+    <div class="relative max-w-7xl mx-auto px-3 sm:px-6">
+        <div class="flex items-end justify-between mb-5 sm:mb-6 gap-3">
+            <div>
+                <h2 class="font-display text-base sm:text-xl font-bold mb-1">Semua Produk</h2>
+                <p class="text-[10px] sm:text-xs" style="color:var(--text-3);">Pilih produk favoritmu dan beli sekarang</p>
+            </div>
+            <a href="/products" class="text-xs font-semibold flex-shrink-0" style="color:var(--blue);">Lihat Semua Produk &rarr;</a>
+        </div>
+
+        <div class="flex gap-2 mb-6 sm:mb-8" role="group" aria-label="Filter platform">
+            <button class="filter-pill active" data-pf="all" onclick="filterPlat('all')">Semua</button>
+            <button class="filter-pill" data-pf="ios" onclick="filterPlat('ios')">iOS</button>
+            <button class="filter-pill" data-pf="android" onclick="filterPlat('android')">Android</button>
+        </div>
+
+        <div id="product-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            <% products.forEach(product => { %>
+            <%- include('../partials/product-card', { product }) %>
+            <% }) %>
+        </div>
+
+        <% if (products.length === 0) { %>
+        <div class="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16">
+            <iconify-icon icon="solar:box-minimalistic-bold" class="text-3xl text-white/10 mb-3 block mx-auto"></iconify-icon>
+            <p class="text-white/15 text-xs">Belum ada produk tersedia</p>
+        </div>
+        <% } %>
+    </div>
+</section>
+
+<!-- KATA MEREKA -->
+<% if (typeof testimonialsForHome !== 'undefined' && testimonialsForHome.length > 0) { %>
+<section id="testimoni" class="relative py-10 sm:py-14">
+    <div class="relative max-w-7xl mx-auto px-3 sm:px-6">
+        <div class="mb-5 sm:mb-6">
+            <h2 class="font-display text-base sm:text-xl font-bold mb-1">Kata Mereka</h2>
+            <p class="text-[10px] sm:text-xs" style="color:var(--text-3);">Ulasan dari pembeli yang sudah menerima key</p>
+        </div>
+        <div class="relative">
+            <div id="testi-scroll" class="testi-scroll">
+                <% testimonialsForHome.forEach(t => { %>
+                <div class="testi-card">
+                    <div class="testi-stars" aria-label="Rating <%= t.rating %> dari 5"><% for (let i=1;i<=5;i++) { %><span style="color:<%= i <= t.rating ? '#fbbf24' : 'rgba(255,255,255,.18)' %>;">&#9733;</span><% } %></div>
+                    <p class="testi-text">&ldquo;<%= t.text %>&rdquo;</p>
+                    <div class="testi-user">
+                        <div class="testi-avatar"><%= (t.username||'?').charAt(0).toUpperCase() %></div>
+                        <div class="min-w-0">
+                            <div class="testi-name"><%= t.username %></div>
+                            <% if (t.productName) { %><div class="testi-prod"><%= t.productName %></div><% } %>
+                        </div>
+                    </div>
+                </div>
+                <% }) %>
+            </div>
+            <button type="button" class="testi-arrow testi-prev" aria-label="Sebelumnya" onclick="document.getElementById('testi-scroll').scrollBy({left:-300,behavior:'smooth'})">&#8249;</button>
+            <button type="button" class="testi-arrow testi-next" aria-label="Berikutnya" onclick="document.getElementById('testi-scroll').scrollBy({left:300,behavior:'smooth'})">&#8250;</button>
+        </div>
+    </div>
+</section>
+<style>
+.testi-scroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:4px;}
+.testi-scroll::-webkit-scrollbar{display:none;}
+.testi-card{flex:0 0 280px;scroll-snap-align:start;background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;}
+.testi-stars{font-size:16px;letter-spacing:2px;line-height:1;margin-bottom:12px;}
+.testi-text{font-size:13px;line-height:1.55;color:var(--text-1);min-height:40px;margin-bottom:14px;}
+.testi-user{display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);padding-top:12px;margin-top:auto;}
+.testi-avatar{width:32px;height:32px;border-radius:50%;background:var(--royal);color:var(--on-accent);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.testi-name{font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.testi-prod{font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.testi-arrow{display:none;position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(5,7,13,.85);border:1px solid var(--border-md);color:#fff;font-size:22px;line-height:1;align-items:center;justify-content:center;cursor:pointer;z-index:3;}
+.testi-prev{left:-10px;} .testi-next{right:-10px;}
+@media(min-width:768px){.testi-arrow{display:flex;}}
+.testi-arrow:hover{background:var(--royal);}
+</style>
+<% } %>
+
+<!-- PLATFORM TERSEDIA -->
+<% if (typeof availablePlatforms !== 'undefined' && availablePlatforms.length > 0) { %>
+<section class="py-8 text-center">
+    <p class="text-[11px] font-bold mb-3" style="color:var(--text-3);letter-spacing:.16em;">PLATFORM TERSEDIA</p>
+    <div class="flex items-center justify-center gap-2 flex-wrap px-3">
+        <% availablePlatforms.forEach(p => { %><span class="px-4 py-1.5 rounded-full text-xs font-semibold" style="background:rgba(255,255,255,.08);color:var(--text-1);"><%= p %></span><% }) %>
+    </div>
+</section>
+<% } %>
+
+<!-- CTA DAFTAR -->
+<% if (!user) { %>
+<section class="py-4 sm:py-6">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6">
+        <!-- Gradient: cyan 21% -> 10% -> 0% di atas #09090b (diukur dari web referensi) -->
+        <div class="rounded-3xl p-6 sm:p-9 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5" style="background:linear-gradient(90deg,rgba(6,182,212,.21) 0%,rgba(6,182,212,.10) 50%,rgba(6,182,212,0) 100%),var(--bg-main);border:1px solid rgba(6,182,212,.22);">
+            <div>
+                <p class="text-[11px] font-bold mb-2" style="color:var(--blue);letter-spacing:.14em;">BELUM PUNYA AKUN?</p>
+                <h2 class="font-display text-xl sm:text-3xl leading-tight" style="max-width:440px;font-weight:800;">Daftar sekarang &amp; nikmati beli key lebih mudah</h2>
+                <p class="text-xs sm:text-sm mt-2" style="color:var(--text-2);">Simpan riwayat transaksi, akses lebih cepat, notifikasi pesanan.</p>
+            </div>
+            <a href="/register" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold flex-shrink-0" style="background:var(--royal);color:var(--on-accent);">Buat Akun Gratis <span aria-hidden="true">&rarr;</span></a>
+        </div>
+    </div>
+</section>
+<% } %>
+
+<!-- FAQ -->
+<section id="faq" class="py-10 sm:py-16">
+    <div class="max-w-2xl mx-auto px-3 sm:px-6">
+        <div class="mb-5 sm:mb-6">
+            <h2 class="font-display text-base sm:text-xl font-bold mb-1">Pertanyaan Umum</h2>
+            <p class="text-[10px] sm:text-xs" style="color:var(--text-3);">Yang perlu kamu tahu sebelum membeli</p>
+        </div>
+        <div class="space-y-2">
+            <% [
+                ['Apa itu key lisensi?', 'Key adalah kode untuk mengaktifkan produk yang kamu beli. Setelah pembayaran dikonfirmasi, key tampil di halaman Cek Pesanan.'],
+                ['Berapa lama key dikirim setelah bayar?', 'Pembayaran dicek manual oleh admin. Begitu dikonfirmasi, key langsung muncul di halaman pesananmu. Kalau belum muncul, hubungi admin lewat WhatsApp.'],
+                ['Metode pembayaran apa yang tersedia?', 'Saat ini lewat QRIS. Scan kode QRIS, bayar sesuai total, lalu tunggu konfirmasi admin.'],
+                ['Bagaimana kalau key tidak bisa dipakai?', 'Kirim nomor pesananmu ke admin lewat WhatsApp supaya key-nya dicek dan diganti jika memang bermasalah.'],
+                ['Apakah harus punya akun untuk membeli?', 'Ya, kamu perlu login untuk membuat pesanan. Pesanan yang sudah dibuat tetap bisa dicek lewat nomor pesanan di halaman Cek Pesanan.']
+            ].forEach(qa => { %>
+            <details class="faq-item rounded-xl" style="background:var(--bg-card);border:1px solid var(--border);">
+                <summary class="flex items-center justify-between gap-3 px-4 py-3.5 text-sm font-semibold">
+                    <span><%= qa[0] %></span>
+                    <iconify-icon icon="mdi:chevron-down" class="faq-chev flex-shrink-0" style="color:var(--text-2);font-size:18px;"></iconify-icon>
+                </summary>
+                <p class="px-4 pb-4 text-xs leading-relaxed" style="color:var(--text-2);"><%= qa[1] %></p>
+            </details>
+            <% }) %>
+        </div>
+    </div>
+</section>
+
+<%- include('../partials/footer') %>
+
+<%- include('../partials/purchase-toast') %>
+<%- include('../partials/chat-fab') %>
+
+
+<script>
+    function toggleMobile() {
+        const menu = document.getElementById('mobile-menu');
+        const icon = document.getElementById('menu-icon');
+        menu.classList.toggle('hidden');
+        if (icon) {
+            icon.setAttribute('icon', menu.classList.contains('hidden') ? 'mdi:menu' : 'mdi:close');
+        }
+    }
+
+    function closeMobile() {
+        document.getElementById('mobile-menu').classList.add('hidden');
+        const icon = document.getElementById('menu-icon');
+        if (icon) icon.setAttribute('icon', 'mdi:menu');
+    }
+
+    function filterPlat(pf) {
+        document.querySelectorAll('[data-pf]').forEach(b => b.classList.toggle('active', b.dataset.pf === pf));
+        document.querySelectorAll('#product-grid > article').forEach(a => {
+            const ok = pf === 'all' || (a.dataset.plat || '').split(',').includes(pf);
+            a.style.display = ok ? '' : 'none';
+        });
+    }
+
+</script>
