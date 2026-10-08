@@ -51,7 +51,17 @@ const pageTitle = 'Cek Pesanan';
 
                             <div class="flex items-center justify-between">
                                 <span class="text-xs text-zinc-400">Durasi</span>
-                                <span class="text-xs text-white font-medium"><%= transaction.duration %></span>
+                                <%
+                                    // Label durasi rapi ("12 Jam"), bukan label item mentah ("NAMA PRODUK 12 HOURS")
+                                    let _durLabel = transaction.duration;
+                                    if (transaction.selectedDays) {
+                                        _durLabel = transaction.selectedDays + ' ' + (transaction.selectedUnit === 'hour' ? 'Jam' : 'Hari');
+                                    } else {
+                                        const _m = String(transaction.duration || '').match(/(\d+)\s*(HOURS?|JAM|DAYS?|HARI)\s*$/i);
+                                        if (_m) _durLabel = _m[1] + ' ' + (/^(HOURS?|JAM)$/i.test(_m[2]) ? 'Jam' : 'Hari');
+                                    }
+                                %>
+                                <span class="text-xs text-white font-medium"><%= _durLabel %></span>
                             </div>
 
                             <% if (transaction.originalPrice && transaction.voucherDiscount) { %>
@@ -69,6 +79,13 @@ const pageTitle = 'Cek Pesanan';
                                 <span class="text-xs text-zinc-400">Total</span>
                                 <span class="text-xs text-cyan-400 font-bold">Rp <%= transaction.price.toLocaleString('id-ID') %></span>
                             </div>
+
+                            <% if (transaction.totalPayment && transaction.totalPayment !== transaction.price) { %>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-zinc-400">Total Bayar (QRIS)</span>
+                                <span class="text-xs text-white font-medium">Rp <%= Number(transaction.totalPayment).toLocaleString('id-ID') %></span>
+                            </div>
+                            <% } %>
 
                             <div class="flex items-center justify-between">
                                 <span class="text-xs text-zinc-400">Waktu</span>

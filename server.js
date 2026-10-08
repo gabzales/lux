@@ -314,6 +314,27 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// ── MODE MAINTENANCE ──
+// Aktif lewat Admin → Settings. Admin yang sudah login tidak terblokir. Tetap lolos: halaman admin & login admin,
+// webhook / cek pembayaran (transaksi yang sedang berjalan jangan sampai putus), Cek Pesanan, dan aset statis.
+const MAINT_ALLOW = /^\/(admin|lx-secure-panel-7k|webhook|check-payment|invoice|cek-pesanan|uploads|images|icons|sw\.js|manifest\.webmanifest|__build|favicon)/i;
+app.use(async (req, res, next) => {
+  try {
+    if (res.locals.isAdmin || MAINT_ALLOW.test(req.path) || /\.(png|jpe?g|webp|svg|ico|css|js|woff2?|map)$/i.test(req.path)) return next();
+    const s = await db.readSmart('settings.json'); // flag boleh basi maks ~30 dtk antar instance Vercel
+    if (s?.maintenanceMode !== true) return next();
+    const message = String(s.maintenanceMessage || '').slice(0, 300);
+    res.set({ 'Retry-After': '300', 'Cache-Control': 'no-store' });
+    if (req.method !== 'GET' || req.path.startsWith('/api/')) {
+      return res.status(503).json({ success: false, maintenance: true, message: message || 'Toko sedang maintenance. Coba lagi sebentar lagi.' });
+    }
+    return res.status(503).render('pages/maintenance', { layout: false, message, logoUrl: res.locals.settings?.logoUrl, storeName: res.locals.settings?.siteName || 'LUXZCO' });
+  } catch (e) {
+    console.error('[maintenance] gate error (dilewati):', e.message);
+    next();
+  }
+});
+
 // Setup upload — gunakan /tmp di Vercel (satu-satunya writable path)
 const isVercel = process.env.VERCEL === '1' || process.env.NOW_REGION;
 const uploadsBase = isVercel ? '/tmp' : path.join(__dirname, 'public', 'uploads');
@@ -396,6 +417,8 @@ const initDB = async () => {
     adminUsername: fallbackUsername,
     adminPassword: bcrypt.hashSync(fallbackPassword, 12),
     adminLockEnabled: true,
+    maintenanceMode: false,
+    maintenanceMessage: '',
     logoUrl: '/uploads/logo-luxzco-text.png',
     faviconUrl: '/uploads/favicon-lx.png',
     theme: {
@@ -2514,6 +2537,19 @@ app.post('/admin/settings/password', requireAdmin, async (req, res) => {
     res.json({ success: true, message: 'Password admin berhasil diubah' });
   } catch (error) {
     res.json({ success: false, message: error.message });
+  }
+});
+
+app.post('/admin/settings/maintenance', requireAdmin, async (req, res) => {
+  try {
+    const { maintenanceMode, maintenanceMessage } = req.body;
+    const settings = await readFresh('settings.json');
+    settings.maintenanceMode = maintenanceMode === 'true' || maintenanceMode === true;
+    settings.maintenanceMessage = String(maintenanceMessage == null ? '' : maintenanceMessage).trim().slice(0, 300);
+    await writeDB('settings.json', settings);
+    res.json({ success: true, maintenanceMode: settings.maintenanceMode });
+  } catch (e) {
+    res.json({ success: false, message: e.message });
   }
 });
 
