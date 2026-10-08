@@ -1047,20 +1047,39 @@ function withStockCount({ keys, ...p }) {
   return { ...rest, stockCount: auto ? Math.max(local, 999999) : local, autoRestock: auto };
 }
 
+// Angka rating/ulasan yang ditampilkan. Admin bisa menimpa lewat Edit Produk (ratingOverride, reviewCountOverride);
+// kalau kosong dipakai hitungan otomatis dari ulasan pembeli asli.
+function numOrNull(v, min, max, int) {
+  if (v === '' || v === null || v === undefined) return null;
+  let n = Number(v);
+  if (!isFinite(n)) return null;
+  if (int) n = Math.round(n);
+  return Math.min(max, Math.max(min, n));
+}
+function displayRating(p, a) {
+  const calcN = a ? a.n : 0;
+  const calcAvg = a ? Math.round((a.sum / a.n) * 10) / 10 : 0;
+  const ro = numOrNull(p.ratingOverride, 0, 5, false);
+  const co = numOrNull(p.reviewCountOverride, 0, 10000000, true);
+  const avg = ro !== null ? Math.round(ro * 10) / 10 : calcAvg;
+  const count = co !== null ? co : (ro !== null && calcN === 0 ? 0 : calcN);
+  return { avg, count, locked: ro !== null || co !== null };
+}
+
 // Rating rata-rata & jumlah ulasan per produk (dari testimonials.json) untuk kartu produk
 function withProductStats(list) {
   const agg = {};
   (readDB('testimonials.json') || []).forEach(t => {
     const pid = t.productId || t.product;
-    // Rating produk hanya dari ulasan pembeli asli yang ditampilkan; testimoni manual tidak ikut dihitung
+    // Hitungan otomatis hanya dari ulasan pembeli asli yang ditampilkan; testimoni manual tidak ikut dihitung
     if (pid && t.verified && testiSource(t) === 'real' && t.rating >= 1 && t.rating <= 5) {
       const a = agg[pid] || (agg[pid] = { sum: 0, n: 0 });
       a.sum += t.rating; a.n++;
     }
   });
   return list.map(p => {
-    const a = agg[p.id];
-    return { ...p, rating: a ? Math.round((a.sum / a.n) * 10) / 10 : 0, reviewCount: a ? a.n : 0 };
+    const d = displayRating(p, agg[p.id]);
+    return { ...p, rating: d.avg, reviewCount: d.count };
   });
 }
 
@@ -1103,7 +1122,6 @@ app.get('/', async (req, res) => {
     : '4.9';
   const ratingCounts = {1:0,2:0,3:0,4:0,5:0};
   testimonialsForHome.forEach(t => { if (t.rating >= 1 && t.rating <= 5) ratingCounts[t.rating]++; });
-  const totalSold = products.reduce((s, p) => s + (p.sold || 0), 0);
   const platformLabels = { ios: 'iOS', android: 'Android', pc: 'PC' };
   const availablePlatforms = [...new Set(products.flatMap(p => p.platforms || []))].map(p => platformLabels[p] || String(p));
   // Pakai res.locals.settings yang sudah di-fetch oleh middleware (readFresh fallback)
@@ -1113,6 +1131,11 @@ app.get('/', async (req, res) => {
   // SECURITY: strip keys sebelum dikirim ke view. stockCount = stok lokal + (999999 bila ada durasi yang
   // dijual otomatis lewat Ghostseller; Infinity jadi null di JSON → produk tampak "Habis").
   const productsSafe = withProductStats(products.map(withStockCount));
+  // Statistik beranda (ikut angka yang diatur admin di Edit Produk)
+  const totalSold = productsSafe.reduce((s, p) => s + (Number(p.sold) || 0), 0);
+  const _rated = productsSafe.filter(p => p.reviewCount > 0 && p.rating > 0);
+  const totalReviews = _rated.reduce((s, p) => s + p.reviewCount, 0);
+  const siteRating = totalReviews ? Math.round((_rated.reduce((s, p) => s + p.rating * p.reviewCount, 0) / totalReviews) * 10) / 10 : 0;
 
   res.render('pages/home', {
     products: productsSafe,
@@ -1130,6 +1153,8 @@ app.get('/', async (req, res) => {
     avgRating,
     ratingCounts,
     totalSold,
+    totalReviews,
+    siteRating,
     availablePlatforms
   });
 });
@@ -1749,7 +1774,8 @@ app.get('/buy/:id', requireAuth, async (req, res) => {
   (readDB('testimonials.json') || []).forEach(t => {
     if ((t.productId || t.product) === product.id && t.verified && testiSource(t) === 'real' && t.rating >= 1 && t.rating <= 5) { _agg.sum += t.rating; _agg.n++; }
   });
-  const ratingInfo = { avg: _agg.n ? Math.round((_agg.sum / _agg.n) * 10) / 10 : 0, count: _agg.n };
+  const _d = displayRating(product, _agg.n ? _agg : null);
+  const ratingInfo = { avg: _d.avg, count: _d.count, locked: _d.locked };
 
   res.render('pages/buy', { product, settings, user, isReseller, hasPurchased, ratingInfo });
 });
@@ -2796,7 +2822,7 @@ app.get('/api/testimonials', async (req, res) => {
   }
 
   if (productId) {
-    filtered = filtered.filter(t => t.product === productId || t.productName === productId);
+    filtered = filtered.filter(t => t.productId === productId || t.product === productId || t.productName === productId);
   }
 
   // Sort by date descending
@@ -2870,19 +2896,22 @@ app.get('/admin/testimonials/all', requireAdmin, async (req, res) => {
 
 app.post('/admin/testimonial/add', requireAdmin, async (req, res) => {
   try {
-    const { name, username, rating, text, product, verified, featured } = req.body;
+    const { name, username, rating, text, product, verified, featured, productId } = req.body;
     if (!String(name || '').trim() || !String(text || '').trim()) return res.json({ success: false, message: 'Nama dan isi testimoni wajib diisi' });
     const testimonials = await readFresh('testimonials.json');
+    let linkedProduct = null;
+    if (productId) { linkedProduct = (await readSmart('products.json')).find(x => x.id === productId) || null; if (!linkedProduct) return res.json({ success: false, message: 'Produk tidak ditemukan' }); }
 
     const newTestimonial = {
       id: `testi-${Date.now()}`,
       source: 'manual',
       name: String(name || '').trim().slice(0, 40),
       username: username || null,
-      rating: parseInt(rating) || 5,
+      rating: Math.min(5, Math.max(1, parseInt(rating) || 5)),
       text: String(text || '').trim().slice(0, 500),
-      product: product || null,
-      productName: product || '',
+      product: linkedProduct ? linkedProduct.id : (product || null),
+      productId: linkedProduct ? linkedProduct.id : undefined,
+      productName: linkedProduct ? linkedProduct.name : (product || ''),
       date: new Date().toISOString(),
       verified: verified === true || verified === 'true',
       featured: featured === true || featured === 'true'
@@ -2895,6 +2924,39 @@ app.post('/admin/testimonial/add', requireAdmin, async (req, res) => {
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
+});
+
+// Testimoni milik satu produk (real + manual) untuk panel Edit Produk
+app.get('/admin/product/:id/testimonials', requireAdmin, async (req, res) => {
+  try {
+    const product = (await readFresh('products.json')).find(x => x.id === req.params.id);
+    if (!product) return res.json({ success: false, message: 'Produk tidak ditemukan' });
+    const list = (await readFresh('testimonials.json'))
+      .filter(t => t.productId === product.id || t.product === product.id || (t.productName && t.productName === product.name) || (t.product && t.product === product.name))
+      .map(t => ({ ...t, source: testiSource(t), displayName: t.name || t.username || 'Pelanggan' }))
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    res.json({ success: true, data: list });
+  } catch (e) { res.json({ success: false, message: e.message }); }
+});
+
+// Edit testimoni (U dari CRUD): nama, rating, isi, tampil/verified, featured
+app.post('/admin/testimonial/edit/:id', requireAdmin, async (req, res) => {
+  try {
+    const testimonials = await readFresh('testimonials.json');
+    const t = testimonials.find(x => x.id === req.params.id);
+    if (!t) return res.json({ success: false, message: 'Testimoni tidak ditemukan' });
+    const { name, rating, text, verified, featured } = req.body;
+    if (typeof text === 'string') {
+      if (!text.trim()) return res.json({ success: false, message: 'Isi testimoni tidak boleh kosong' });
+      t.text = text.trim().slice(0, 500);
+    }
+    if (rating !== undefined) t.rating = Math.min(5, Math.max(1, parseInt(rating) || t.rating || 5));
+    if (typeof name === 'string' && name.trim() && testiSource(t) === 'manual') t.name = name.trim().slice(0, 40);
+    if (verified !== undefined) t.verified = verified === true || verified === 'true';
+    if (featured !== undefined) t.featured = featured === true || featured === 'true';
+    await writeDB('testimonials.json', testimonials);
+    res.json({ success: true, message: 'Testimoni diperbarui' });
+  } catch (e) { res.json({ success: false, message: e.message }); }
 });
 
 app.post('/admin/testimonial/delete/:id', requireAdmin, async (req, res) => {
@@ -3024,6 +3086,11 @@ app.post('/admin/product/:id', requireAdmin, async (req, res) => {
 
     if (productIndex === -1) return res.json({ success: false, message: 'Produk tidak ditemukan' });
     const p = products[productIndex];
+
+    // Angka tampilan yang diatur admin: jumlah terjual, rating, jumlah ulasan (kosong = otomatis)
+    if ('sold' in req.body) { const v = numOrNull(req.body.sold, 0, 1000000000, true); if (v !== null) p.sold = v; }
+    if ('ratingOverride' in req.body) { const v = numOrNull(req.body.ratingOverride, 0, 5, false); if (v === null) delete p.ratingOverride; else p.ratingOverride = Math.round(v * 10) / 10; }
+    if ('reviewCountOverride' in req.body) { const v = numOrNull(req.body.reviewCountOverride, 0, 10000000, true); if (v === null) delete p.reviewCountOverride; else p.reviewCountOverride = v; }
 
     // Simpan ke image (yang dibaca frontend) DAN bannerUrl
     if (bannerUrl && !isValidImageUrl(bannerUrl)) return res.json({ success: false, message: 'URL gambar tidak valid' });

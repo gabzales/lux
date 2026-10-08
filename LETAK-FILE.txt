@@ -1,0 +1,10 @@
+Taruh file sesuai folder ini (timpa yang lama):
+
+server.js              -> / (root project)
+admin.ejs              -> views/pages/
+admin-product-edit.ejs -> views/pages/
+buy.ejs                -> views/pages/
+home.ejs               -> views/pages/
+invoice.ejs            -> views/pages/
+maintenance.ejs        -> views/pages/   (FILE BARU)
+product-card.ejs       -> views/partials/

@@ -1,0 +1,28 @@
+<%
+  const _stock = (product.stockCount !== undefined) ? product.stockCount : (product.keys ? product.keys.length : 0);
+  const _out = _stock === 0;
+  const _plats = product.platforms || [];
+  const _platLabel = { ios: 'IOS', android: 'ANDROID', pc: 'PC' };
+  const _arr = product.pricingOptions || product.items || [];
+  const _prices = _arr.map(x => (typeof x === 'object' ? (x.price ?? x.p) : x)).filter(v => typeof v === 'number');
+  const _min = _prices.length ? Math.min(..._prices) : (product.price || 0);
+  const _hasRating = (product.reviewCount || 0) > 0;
+%>
+<article class="pcard<%= _out ? ' out' : '' %>" data-name="<%= (product.name || '').toLowerCase() %>" data-cat="<%= product.category %>" data-plat="<%= _plats.join(',') %>">
+    <a href="/buy/<%= product.id %>" class="pcard-img" aria-label="<%= product.name %>">
+        <span class="pcard-ph"><iconify-icon icon="solar:gamepad-bold" style="font-size:34px;"></iconify-icon></span>
+        <% if (product.image) { %><img src="<%= product.image %>" alt="<%= product.name %>" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.jpg'"><% } %>
+        <span class="pcard-plats"><% _plats.forEach(p => { %><span class="pcard-plat"><%= _platLabel[p] || String(p).toUpperCase() %></span><% }) %></span>
+        <% if (_out) { %><span class="pcard-soldout">STOK HABIS</span><% } %>
+    </a>
+    <div class="pcard-body">
+        <h3 class="pcard-title"><%= product.name %></h3>
+        <div class="pcard-meta">
+            <% if (_hasRating) { %><span class="pcard-star">&#9733;</span><b><%= Number(product.rating).toFixed(1) %></b><span>(<%= product.reviewCount %>)</span><% } %>
+            <% if ((product.sold || 0) > 0) { %><% if (_hasRating) { %><span style="opacity:.5;">&bull;</span><% } %><span><%= Number(product.sold).toLocaleString('id-ID') %> terjual</span><% } %>
+        </div>
+        <div class="pcard-from">Mulai dari</div>
+        <div class="pcard-price">Rp <%= _min.toLocaleString('id-ID') %></div>
+        <% if (!_out) { %><a href="/buy/<%= product.id %>" class="pcard-btn">Beli Sekarang</a><% } else { %><span class="pcard-btn" aria-disabled="true">Stok Habis</span><% } %>
+    </div>
+</article>
