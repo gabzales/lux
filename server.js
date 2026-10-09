@@ -268,9 +268,18 @@ const compactTransactions = (list) => {
 const cachePublic = (res, sMaxAge = 30, swr = 120) =>
   res.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`);
 
+// Secret cookie sesi. Kalau SESSION_SECRET kosong, dulu dibuat ACAK per instance serverless → cookie login yang ditandatangani
+// instance A ditolak instance B → sesi admin "hilang" acak-acakan (requireAdmin membalas 404 "Not found" ke fetch()).
+// Fallback sekarang diturunkan dari secret server yang sama di semua instance (service-role key Supabase), jadi stabil.
+// Tetap WAJIB isi SESSION_SECRET di env Vercel (lebih baik).
+const SESSION_SECRET_EFFECTIVE = process.env.SESSION_SECRET
+  || (process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? require('crypto').createHmac('sha256', 'lx-session-fallback-v1').update(process.env.SUPABASE_SERVICE_ROLE_KEY).digest('hex')
+        : require('crypto').randomBytes(32).toString('hex'));
+
 app.use(cookieSession({
   name: 'lx_session',
-  secret: process.env.SESSION_SECRET || require('crypto').randomBytes(32).toString('hex'),
+  secret: SESSION_SECRET_EFFECTIVE,
   maxAge: 7 * 24 * 60 * 60 * 1000,
   httpOnly: true,
   sameSite: 'lax',
@@ -1235,11 +1244,16 @@ app.post('/webhook/genspay', async (req, res) => {
     if (processingOrders.has(txLock)) return res.status(503).json({ error: 'busy' });
     processingOrders.add(txLock);
 
+    // Catat status terakhir dari GensPay (dipakai panel admin untuk memperingatkan sebelum acc manual)
+    tx.gatewayStatus = status || 'UNKNOWN';
+    tx.gatewayAt = new Date().toISOString();
+
     if (status === 'EXPIRED' || status === 'FAILED') {
-      if (tx.status === 'pending' && !tx.paymentConfirmed) { tx.status = 'expired'; await writeDB('transactions.json', transactions); }
+      if (tx.status === 'pending' && !tx.paymentConfirmed) { tx.status = 'expired'; }
+      await writeDB('transactions.json', transactions);
       return res.json({ ok: true, status });
     }
-    if (status !== 'SUCCESS') return res.json({ ok: true, ignored: status || 'unknown_status' });
+    if (status !== 'SUCCESS') { await writeDB('transactions.json', transactions); return res.json({ ok: true, ignored: status || 'unknown_status' }); }
 
     if (!genspay.isAmountEnough(d, tx.price)) {
       console.error(`[genspay-webhook] nominal kurang: order=${orderId} harga=${tx.price} amount=${d.amount} net=${d.net_amount}`);
@@ -2661,6 +2675,14 @@ app.post('/admin/transaction/confirm/:id', requireAdmin, async (req, res) => {
     const transaction = transactions.find(t => t.id === req.params.id);
     if (!transaction) return res.json({ success: false, message: 'Transaksi tidak ditemukan' });
     if (transaction.status === 'done') return res.json({ success: false, message: 'Transaksi sudah selesai' });
+
+    // Order lewat GensPay yang BELUM tercatat lunas (status GensPay bukan SUCCESS): uang belum tentu masuk.
+    // Minta konfirmasi ulang (force) supaya admin tidak tanpa sengaja mengirim key gratis.
+    if (transaction.gateway === 'genspay' && transaction.gatewayStatus !== 'SUCCESS' && !transaction.paymentConfirmed && req.body?.force !== true) {
+      const st = transaction.gatewayStatus || (transaction.status === 'expired' ? 'EXPIRED' : 'belum ada kabar dari GensPay');
+      return res.json({ success: false, needsForce: true, gatewayStatus: st,
+        message: `GensPay belum mencatat pembayaran ini (status: ${st}). Cek dulu saldo/riwayat di dashboard GensPay — kalau uang belum masuk, jangan di-acc.` });
+    }
 
     // Jika transaksi reseller, upgrade user
     if (transaction.type === 'reseller') {

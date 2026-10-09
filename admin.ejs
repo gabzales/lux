@@ -1277,6 +1277,22 @@ let _sessionKicked = false;
 const _origFetch = window.fetch.bind(window);
 window.fetch = async function(...args) {
     const res = await _origFetch(...args);
+    // Sesi admin hilang/kedaluwarsa: server membalas 404 teks "Not found" (bukan JSON) untuk route /admin/*.
+    // Tanpa ini, tombol menampilkan error mentah "Unexpected token 'N', "Not found" is not valid JSON".
+    if (!_sessionKicked && res.status === 404) {
+        try {
+            const u = new URL(typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '', location.origin);
+            const ct = res.headers.get('content-type') || '';
+            if (u.pathname.startsWith('/admin') && !ct.includes('application/json')) {
+                const txt = (await res.clone().text()).trim();
+                if (txt === 'Not found') {
+                    _sessionKicked = true;
+                    toast('Sesi admin berakhir. Login ulang dulu ya...', 'error');
+                    setTimeout(() => { window.location.href = '/lx-secure-panel-7k'; }, 1500);
+                }
+            }
+        } catch {}
+    }
     if (!_sessionKicked && res.status === 401) {
         try {
             const clone = res.clone();
@@ -1377,7 +1393,8 @@ async function api(url, data) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     });
-    return r.json();
+    try { return await r.json(); }
+    catch { return { success: false, message: r.status === 404 ? 'Sesi admin berakhir, login ulang.' : 'Respons server tidak valid (HTTP ' + r.status + ')' }; }
 }
 
 // ── SETTINGS: Maintenance & Kunci Login ──
@@ -1798,7 +1815,11 @@ async function confirmTransaction(id) {
     if (!confirm('Konfirmasi pembayaran transaksi ini?')) return;
     const btn = document.getElementById(`trx-confirm-${id}`);
     if (btn) { btn.disabled = true; btn.innerHTML = '<iconify-icon icon="mdi:loading" class="animate-spin"></iconify-icon> Proses...'; }
-    const d = await api(`/admin/transaction/confirm/${id}`, {});
+    let d = await api(`/admin/transaction/confirm/${id}`, {});
+    if (!d.success && d.needsForce) {
+        if (confirm(d.message + '\n\nTetap acc manual dan kirim key?')) d = await api(`/admin/transaction/confirm/${id}`, { force: true });
+        else { if (btn) { btn.disabled = false; btn.innerHTML = '<iconify-icon icon="mdi:check-circle"></iconify-icon> Konfirmasi Bayar'; } return; }
+    }
     if (d.success) {
         toast(d.type === 'reseller' ? 'User berhasil diupgrade jadi Reseller VIP!' : `Konfirmasi berhasil! Key: ${d.key||'-'}`, 'success');
         const badge = document.getElementById(`trx-status-badge-${id}`);

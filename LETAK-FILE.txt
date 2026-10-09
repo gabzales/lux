@@ -1,5 +1,6 @@
 Taruh file sesuai folder ini (timpa yang lama):
 
-server.js            -> / (root project)  [sudah termasuk perbaikan sebelumnya]
-layout.ejs           -> views/
-purchase-toast.ejs   -> views/partials/
+server.js   -> / (root project)  [sudah termasuk perbaikan sebelumnya]
+admin.ejs   -> views/pages/
+
+PENTING: isi env SESSION_SECRET di Vercel (string acak panjang), lalu Redeploy.
