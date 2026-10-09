@@ -1,11 +1,170 @@
 <%
 const pageTitle = 'Cek Pesanan';
+
+// ── Helper tampilan struk (zona waktu WIB) ──
+const _tx = transaction || null;
+const _fmtDate = (d) => d.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+const _fmtTime = (d) => d.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+const _fmtClock = (d) => d.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+const _rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+let _durLabel = '', _when = null, _status = 'cancel', _statusLabel = 'Dibatalkan';
+if (_tx) {
+    // Label durasi rapi ("12 Jam"), bukan label item mentah ("NAMA PRODUK 12 HOURS")
+    _durLabel = _tx.duration;
+    if (_tx.selectedDays) {
+        _durLabel = _tx.selectedDays + ' ' + (_tx.selectedUnit === 'hour' ? 'Jam' : 'Hari');
+    } else {
+        const _m = String(_tx.duration || '').match(/(\d+)\s*(HOURS?|JAM|DAYS?|HARI)\s*$/i);
+        if (_m) _durLabel = _m[1] + ' ' + (/^(HOURS?|JAM)$/i.test(_m[2]) ? 'Jam' : 'Hari');
+    }
+    const _ref = (_tx.status === 'done' && _tx.paidAt) ? _tx.paidAt : _tx.createdAt;
+    const _d = _ref ? new Date(_ref) : null;
+    _when = (_d && !isNaN(_d.getTime())) ? _d : null;
+    if (_tx.status === 'done') { _status = 'done'; _statusLabel = 'Lunas'; }
+    else if (_tx.status === 'pending') { _status = 'pending'; _statusLabel = 'Menunggu Pembayaran'; }
+    else if (_tx.status === 'expired') { _status = 'expired'; _statusLabel = 'Kedaluwarsa'; }
+}
 %>
 
 <%- include('../partials/nav', { active: 'track' }) %>
 
+<style>
+.rc-wrap{max-width:440px;margin:0 auto;}
+.rc-card{scroll-margin-top:84px;background:#0b1538;border:1px solid rgba(255,255,255,.09);border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.45);}
+.rc-head{padding:18px 20px 16px;}
+.rc-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+.rc-pill{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.07);color:#e5e7eb;}
+.rc-pill i{width:8px;height:8px;border-radius:50%;background:#9ca3af;display:inline-block;}
+.rc-pill.done{background:rgba(34,197,94,.14);color:#4ade80;} .rc-pill.done i{background:#22c55e;box-shadow:0 0 8px #22c55e;}
+.rc-pill.pending{background:rgba(251,191,36,.14);color:#fbbf24;} .rc-pill.pending i{background:#fbbf24;animation:rcPulse 1.4s infinite;}
+.rc-pill.expired{background:rgba(148,163,184,.14);color:#cbd5e1;}
+.rc-pill.cancel{background:rgba(248,113,113,.14);color:#f87171;} .rc-pill.cancel i{background:#f87171;}
+@keyframes rcPulse{0%,100%{opacity:1}50%{opacity:.35}}
+.rc-code{display:inline-flex;align-items:center;gap:6px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#94a3b8;background:none;border:0;cursor:pointer;padding:4px 2px;}
+.rc-code:active{color:#fff;}
+.rc-title{font-size:21px;line-height:1.25;font-weight:800;color:#fff;margin:0;}
+.rc-sub{font-size:13px;color:#94a3b8;margin-top:3px;}
+.rc-rows{border-top:1px solid rgba(255,255,255,.07);}
+.rc-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:13px 20px;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px;}
+.rc-row:last-child{border-bottom:0;}
+.rc-k{color:#94a3b8;flex-shrink:0;}
+.rc-v{color:#fff;font-weight:700;text-align:right;word-break:break-word;}
+.rc-v.price{color:#22d3ee;font-size:15px;}
+.rc-v.muted{color:#94a3b8;font-weight:500;text-decoration:line-through;}
+.rc-v.disc{color:#4ade80;}
+.rc-perf{position:relative;border-top:2px dashed rgba(255,255,255,.14);margin:0;}
+.rc-perf::before,.rc-perf::after{content:'';position:absolute;top:-11px;width:20px;height:20px;border-radius:50%;background:var(--bg-main,#09090b);border:1px solid rgba(255,255,255,.09);}
+.rc-perf::before{left:-11px;} .rc-perf::after{right:-11px;}
+.rc-keysec{padding:18px 20px 20px;}
+.rc-label{font-size:11px;font-weight:800;letter-spacing:.12em;color:#94a3b8;margin-bottom:10px;}
+.rc-keybox{display:flex;align-items:center;gap:12px;background:rgba(0,0,0,.28);border:1px solid rgba(34,197,94,.28);border-radius:14px;padding:12px 12px 12px 14px;}
+.rc-key{flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;font-weight:800;color:#4ade80;word-break:break-all;user-select:all;-webkit-user-select:all;line-height:1.35;}
+.rc-copy{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;}
+.rc-copy:active{transform:scale(.96);}
+.rc-copy.ok{background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.5);color:#4ade80;}
+.rc-note{text-align:center;font-size:12px;color:#94a3b8;margin-top:12px;}
+.rc-info{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:12px;line-height:1.5;}
+.rc-info.amber{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fcd34d;}
+.rc-info.red{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#fca5a5;}
+.rc-actions{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+.rc-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:14px;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer;border:0;}
+.rc-btn.primary{background:#06b6d4;color:#00131a;}
+.rc-btn.ghost{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e5e7eb;}
+.rc-checked{text-align:center;font-size:11px;color:#64748b;margin-top:12px;}
+</style>
+
 <div class="min-h-screen pt-20 pb-10 px-4">
-    <div class="max-w-lg mx-auto">
+    <div class="rc-wrap">
+
+    <% if (_tx) { %>
+        <!-- ══════════ STRUK PESANAN ══════════ -->
+        <div class="rc-card" id="receipt">
+            <div class="rc-head">
+                <div class="rc-top">
+                    <span class="rc-pill <%= _status %>"><i></i><%= _statusLabel %></span>
+                    <% if (_tx.code) { %>
+                    <button type="button" class="rc-code" data-copy="<%= _tx.code %>" data-copy-label="false" aria-label="Salin kode pesanan">
+                        <span><%= _tx.code %></span>
+                        <iconify-icon icon="mdi:content-copy" style="font-size:14px;"></iconify-icon>
+                    </button>
+                    <% } %>
+                </div>
+                <h1 class="rc-title"><%= _tx.productName %></h1>
+                <% if (_durLabel) { %><div class="rc-sub"><%= _durLabel %></div><% } %>
+            </div>
+
+            <div class="rc-rows">
+                <% if (_tx.customerName) { %>
+                <div class="rc-row"><span class="rc-k">Nama Pembeli</span><span class="rc-v"><%= _tx.customerName %></span></div>
+                <% } %>
+                <div class="rc-row">
+                    <span class="rc-k">Tanggal &amp; Waktu</span>
+                    <span class="rc-v"><% if (_when) { %><%= _fmtDate(_when) %><br><span style="font-weight:600;color:#cbd5e1;">pukul <%= _fmtTime(_when) %> WIB</span><% } else { %><%= _tx.time || '-' %><% } %></span>
+                </div>
+                <div class="rc-row"><span class="rc-k">Metode Bayar</span><span class="rc-v">QRIS<%= _tx.isStatic ? ' (konfirmasi admin)' : '' %></span></div>
+                <% if (_tx.originalPrice && _tx.voucherDiscount) { %>
+                <div class="rc-row"><span class="rc-k">Harga Awal</span><span class="rc-v muted"><%= _rp(_tx.originalPrice) %></span></div>
+                <div class="rc-row"><span class="rc-k">Voucher</span><span class="rc-v disc">-<%= _rp(_tx.voucherDiscount) %></span></div>
+                <% } %>
+                <div class="rc-row"><span class="rc-k">Total</span><span class="rc-v price"><%= _rp(_tx.price) %></span></div>
+                <% if (_tx.totalPayment && Number(_tx.totalPayment) !== Number(_tx.price)) { %>
+                <div class="rc-row"><span class="rc-k">Total Bayar (QRIS)</span><span class="rc-v"><%= _rp(_tx.totalPayment) %></span></div>
+                <% } %>
+            </div>
+
+            <div class="rc-perf"></div>
+
+            <div class="rc-keysec">
+                <% if (_status === 'done' && _tx.key) { %>
+                    <div class="rc-label">KODE KEY / LISENSI</div>
+                    <div class="rc-keybox">
+                        <div class="rc-key"><%= _tx.key %></div>
+                        <button type="button" class="rc-copy" data-copy="<%= _tx.key %>">
+                            <iconify-icon icon="mdi:content-copy" style="font-size:15px;"></iconify-icon><span>Salin</span>
+                        </button>
+                    </div>
+                    <div class="rc-note">Simpan kode ini. Jangan berikan kepada siapapun.</div>
+                <% } else if (_status === 'done' && _tx.outOfStock) { %>
+                    <div class="rc-info amber">
+                        <iconify-icon icon="mdi:clock-alert-outline" style="font-size:18px;flex-shrink:0;margin-top:1px;"></iconify-icon>
+                        <span>Pembayaran sudah diterima, namun stok produk sedang kosong. Admin akan segera memproses dan mengirimkan key kamu manual via WhatsApp.</span>
+                    </div>
+                <% } else if (_status === 'pending') { %>
+                    <div class="rc-info amber">
+                        <iconify-icon icon="mdi:timer-sand" style="font-size:18px;flex-shrink:0;margin-top:1px;"></iconify-icon>
+                        <span><%= _tx.isStatic
+                            ? 'Pesanan menunggu konfirmasi admin. Kirim bukti bayar ke admin agar lebih cepat, lalu tekan Perbarui Status.'
+                            : 'Belum ada pembayaran yang masuk. Selesaikan pembayaran QRIS, lalu tekan Perbarui Status. Key akan muncul di sini setelah lunas.' %></span>
+                    </div>
+                <% } else if (_status === 'expired') { %>
+                    <div class="rc-info red">
+                        <iconify-icon icon="mdi:clock-remove-outline" style="font-size:18px;flex-shrink:0;margin-top:1px;"></iconify-icon>
+                        <span>Waktu pembayaran habis. Silakan buat pesanan baru. Kalau kamu sudah terlanjur bayar, hubungi admin dengan kode pesanan di atas.</span>
+                    </div>
+                <% } else { %>
+                    <div class="rc-info red">
+                        <iconify-icon icon="mdi:close-circle-outline" style="font-size:18px;flex-shrink:0;margin-top:1px;"></iconify-icon>
+                        <span>Pesanan ini dibatalkan. Kalau kamu sudah terlanjur bayar, hubungi admin dengan kode pesanan di atas.</span>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="rc-actions">
+            <% if (_status === 'pending' && _tx.code) { %>
+                <a href="/cek-pesanan?code=<%= encodeURIComponent(_tx.code) %>" class="rc-btn primary">
+                    <iconify-icon icon="mdi:refresh" style="font-size:18px;"></iconify-icon> Perbarui Status
+                </a>
+            <% } %>
+            <a href="/cek-pesanan" class="rc-btn ghost">
+                <iconify-icon icon="mdi:magnify" style="font-size:18px;"></iconify-icon> Cek Pesanan Lain
+            </a>
+        </div>
+        <div class="rc-checked">Terakhir dicek <%= _fmtClock(new Date()) %> WIB</div>
+
+    <% } else { %>
+        <!-- ══════════ FORM CEK PESANAN ══════════ -->
         <div class="bg-[#0a1435] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
             <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
@@ -31,87 +190,6 @@ const pageTitle = 'Cek Pesanan';
                         </div>
                     <% } %>
 
-                    <% if (transaction) { %>
-                        <div class="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20 space-y-3">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Status</span>
-                                <% if (transaction.status === 'done') { %>
-                                    <span class="status-badge status-done">SELESAI</span>
-                                <% } else if (transaction.status === 'pending') { %>
-                                    <span class="status-badge status-pending">PENDING</span>
-                                <% } else { %>
-                                    <span class="status-badge status-cancelled">BATAL</span>
-                                <% } %>
-                            </div>
-
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Produk</span>
-                                <span class="text-xs text-white font-medium"><%= transaction.productName %></span>
-                            </div>
-
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Durasi</span>
-                                <%
-                                    // Label durasi rapi ("12 Jam"), bukan label item mentah ("NAMA PRODUK 12 HOURS")
-                                    let _durLabel = transaction.duration;
-                                    if (transaction.selectedDays) {
-                                        _durLabel = transaction.selectedDays + ' ' + (transaction.selectedUnit === 'hour' ? 'Jam' : 'Hari');
-                                    } else {
-                                        const _m = String(transaction.duration || '').match(/(\d+)\s*(HOURS?|JAM|DAYS?|HARI)\s*$/i);
-                                        if (_m) _durLabel = _m[1] + ' ' + (/^(HOURS?|JAM)$/i.test(_m[2]) ? 'Jam' : 'Hari');
-                                    }
-                                %>
-                                <span class="text-xs text-white font-medium"><%= _durLabel %></span>
-                            </div>
-
-                            <% if (transaction.originalPrice && transaction.voucherDiscount) { %>
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Harga Awal</span>
-                                <span class="text-xs text-zinc-500 line-through">Rp <%= transaction.originalPrice.toLocaleString('id-ID') %></span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Voucher</span>
-                                <span class="text-xs font-bold text-emerald-400">-Rp <%= transaction.voucherDiscount.toLocaleString('id-ID') %></span>
-                            </div>
-                            <% } %>
-
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Total</span>
-                                <span class="text-xs text-cyan-400 font-bold">Rp <%= transaction.price.toLocaleString('id-ID') %></span>
-                            </div>
-
-                            <% if (transaction.totalPayment && transaction.totalPayment !== transaction.price) { %>
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Total Bayar (QRIS)</span>
-                                <span class="text-xs text-white font-medium">Rp <%= Number(transaction.totalPayment).toLocaleString('id-ID') %></span>
-                            </div>
-                            <% } %>
-
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-zinc-400">Waktu</span>
-                                <span class="text-xs text-zinc-300"><%= transaction.time %></span>
-                            </div>
-
-                            <% if (transaction.status === 'done' && transaction.key) { %>
-                                <div class="pt-3 border-t border-white/10">
-                                    <span class="text-xs text-zinc-400 block mb-2">Key/Lisensi:</span>
-                                    <div class="p-3 rounded-lg bg-black/30 border border-emerald-500/30">
-                                        <code class="text-sm text-emerald-400 font-mono break-all font-black">
-                                            <%= transaction.key %><% if (transaction.selectedDays) { %> — <%= transaction.selectedDays %> <%= transaction.selectedUnit === 'hour' ? 'Jam' : 'Hari' %><% } %>
-                                        </code>
-                                    </div>
-                                </div>
-                            <% } else if (transaction.status === 'done' && transaction.outOfStock) { %>
-                                <div class="pt-3 border-t border-white/10">
-                                    <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
-                                        <iconify-icon icon="mdi:clock-alert-outline" class="text-amber-400 text-base mt-0.5"></iconify-icon>
-                                        <span class="text-xs text-amber-300">Pembayaran sudah diterima, namun stok produk sedang kosong. Admin akan segera memproses dan mengirimkan key kamu manual via WhatsApp.</span>
-                                    </div>
-                                </div>
-                            <% } %>
-                        </div>
-                    <% } %>
-
                     <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2">
                         <iconify-icon icon="mdi:magnify" class="text-base"></iconify-icon>
                         <span>Cek Status</span>
@@ -119,5 +197,43 @@ const pageTitle = 'Cek Pesanan';
                 </form>
             </div>
         </div>
+    <% } %>
+
     </div>
 </div>
+
+<script>
+// Tombol Salin: pakai Clipboard API, cadangan execCommand untuk browser/WebView lama.
+(function () {
+    function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+        let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta); return ok;
+    }
+    document.querySelectorAll('[data-copy]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const text = btn.getAttribute('data-copy') || '';
+            const labelEl = btn.querySelector('span');
+            const done = function (ok) {
+                if (!labelEl || btn.getAttribute('data-copy-label') === 'false') {
+                    if (labelEl) { const old = labelEl.textContent; labelEl.textContent = ok ? 'Tersalin' : old; setTimeout(function () { labelEl.textContent = old; }, 1500); }
+                    return;
+                }
+                const old = 'Salin';
+                labelEl.textContent = ok ? 'Tersalin' : 'Gagal';
+                btn.classList.toggle('ok', ok);
+                setTimeout(function () { labelEl.textContent = old; btn.classList.remove('ok'); }, 1800);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallbackCopy(text)); });
+            } else { done(fallbackCopy(text)); }
+        });
+    });
+    // Setelah cek, langsung gulir ke struk supaya jelas hasilnya sudah berubah
+    const r = document.getElementById('receipt');
+    if (r && r.scrollIntoView) setTimeout(function () { r.scrollIntoView({ block: 'start' }); }, 50);
+})();
+</script>
