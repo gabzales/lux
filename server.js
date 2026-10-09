@@ -317,11 +317,14 @@ app.use(async (req, res, next) => {
 // ── MODE MAINTENANCE ──
 // Aktif lewat Admin → Settings. Admin yang sudah login tidak terblokir. Tetap lolos: halaman admin & login admin,
 // webhook / cek pembayaran (transaksi yang sedang berjalan jangan sampai putus), Cek Pesanan, dan aset statis.
+let maintLastSync = 0;
 const MAINT_ALLOW = /^\/(admin|lx-secure-panel-7k|webhook|check-payment|invoice|cek-pesanan|uploads|images|icons|sw\.js|manifest\.webmanifest|__build|favicon)/i;
 app.use(async (req, res, next) => {
   try {
     if (res.locals.isAdmin || MAINT_ALLOW.test(req.path) || /\.(png|jpe?g|webp|svg|ico|css|js|woff2?|map)$/i.test(req.path)) return next();
-    const s = await db.readSmart('settings.json'); // flag boleh basi maks ~30 dtk antar instance Vercel
+    // Baca dari cache (tanpa menunggu Supabase); refresh di belakang tiap 30 dtk supaya antar-instance Vercel tetap sinkron.
+    if (Date.now() - maintLastSync > 30000) { maintLastSync = Date.now(); db.readFresh('settings.json').catch(() => {}); }
+    const s = readDB('settings.json');
     if (s?.maintenanceMode !== true) return next();
     const message = String(s.maintenanceMessage || '').slice(0, 300);
     res.set({ 'Retry-After': '300', 'Cache-Control': 'no-store' });
@@ -750,6 +753,13 @@ const gsAvailable = (product, token) => {
   return !(prov.peekAvailability && prov.peekAvailability(map.productId, map.durationId) === false);
 };
 // Segarkan cache katalog provider yang dipakai produk-produk ini (maks. 1x/menit per instance; dibatasi 2 dtk agar halaman tak lambat).
+// Pemanasan katalog provider (dipakai halaman beranda/produk). Dulu SETIAP kali cache provider kedaluwarsa (Drip Store: 60 dtk),
+// pengunjung berikutnya menunggu fetchCatalog + getBalance berurutan sampai 2 detik → halaman produk terasa "delay parah".
+// Sekarang stale-while-revalidate: kalau sudah pernah dimuat, halaman langsung dirender dari data terakhir (peekAvailability
+// memang memakai cache terakhir) dan refresh jalan di belakang; hanya muat pertama (cold start) yang menunggu, maks 800 ms.
+const warmState = {}; // nama provider -> { loaded:boolean, at:number, inflight:Promise|null }
+const WARM_REFRESH_MS = 30 * 1000;
+const WARM_FIRST_WAIT_MS = 800;
 const warmProviders = async (products) => {
   const names = new Set();
   for (const p of products || []) {
@@ -757,10 +767,19 @@ const warmProviders = async (products) => {
     const n = m && m.productId ? (PROVIDERS[m.provider] ? m.provider : 'ghostseller') : null;
     if (n && PROVIDERS[n].peekAvailability && PROVIDERS[n].isConfigured()) names.add(n);
   }
-  await Promise.all([...names].map(n => Promise.race([
-    PROVIDERS[n].fetchCatalog().then(() => (PROVIDERS[n].getBalance ? PROVIDERS[n].getBalance().catch(() => null) : null)).catch(() => null),
-    new Promise(r => setTimeout(r, 2000)),
-  ])));
+  const waits = [];
+  for (const n of names) {
+    const st = warmState[n] || (warmState[n] = { loaded: false, at: 0, inflight: null });
+    if (!st.inflight && (!st.loaded || Date.now() - st.at > WARM_REFRESH_MS)) {
+      st.inflight = PROVIDERS[n].fetchCatalog()
+        .then(() => (PROVIDERS[n].getBalance ? PROVIDERS[n].getBalance().catch(() => null) : null))
+        .then(() => { st.loaded = true; })
+        .catch(() => null)
+        .finally(() => { st.at = Date.now(); st.inflight = null; });
+    }
+    if (!st.loaded && st.inflight) waits.push(Promise.race([st.inflight, new Promise(r => setTimeout(r, WARM_FIRST_WAIT_MS))]));
+  }
+  if (waits.length) await Promise.all(waits);
 };
 
 const GS_REASON_TEXT = {
@@ -3011,8 +3030,8 @@ app.get('/api/notifications', async (req, res) => {
     if (!name) return '***';
     return name[0] + '*'.repeat(Math.max(name.length - 1, 2));
   };
-  const enriched = notifs.map(({ id, type, productName, price, timeStr, buyerName }) => ({
-    id, type, productName, price, timeStr,
+  const enriched = notifs.map(({ id, type, productName, price, buyerName }) => ({
+    id, type, productName, price,
     buyerName: anonymize(buyerName),
     buyerPhoto: null
   }));

@@ -1,0 +1,134 @@
+<!-- REAL-TIME PURCHASE NOTIFICATION TOAST -->
+<div id="purchase-toast" class="purchase-toast">
+    <div class="pt-icon">
+        <iconify-icon icon="mdi:lightning-bolt" style="font-size:20px;color:#09090b;"></iconify-icon>
+    </div>
+    <div class="pt-body">
+        <div class="pt-line1"><span id="pt-buyer">Seseorang</span> baru saja beli</div>
+        <div class="pt-product" id="pt-product">—</div>
+        <div class="pt-meta"><span id="pt-price">Rp0</span></div>
+    </div>
+    <button class="pt-close" onclick="hidePurchaseToast(true)" aria-label="Tutup">
+        <iconify-icon icon="mdi:close" style="font-size:14px;"></iconify-icon>
+    </button>
+</div>
+
+<style>
+.purchase-toast{
+    position:fixed; left:14px; bottom:20px; z-index:45;
+    display:flex; align-items:flex-start; gap:10px;
+    background:rgba(10,18,48,.95);
+    backdrop-filter:blur(10px);
+    border:1px solid rgba(6,182,212,.2);
+    border-radius:16px;
+    padding:11px 14px;
+    max-width:280px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+    opacity:0; transform:translateX(-120%);
+    transition: opacity .4s ease, transform .4s cubic-bezier(.34,1.56,.64,1);
+    pointer-events:none;
+}
+.purchase-toast.pt-show{ opacity:1; transform:translateX(0); pointer-events:auto; }
+.pt-icon{
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg,#0891b2,#06b6d4);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 14px rgba(6,182,212,.4);
+}
+.pt-body{ min-width:0; }
+.pt-line1{ font-size:11px; color:rgba(232,253,255,.65); font-weight:500; }
+.pt-line1 span{ color:#fff; font-weight:700; }
+.pt-product{ font-size:12.5px; color:#fff; font-weight:700; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:190px; }
+.pt-meta{ font-size:10.5px; color:#06b6d4; font-weight:600; margin-top:2px; }
+.pt-close{
+    background:none; border:none; color:rgba(255,255,255,.3); cursor:pointer;
+    padding:2px; margin-left:2px; flex-shrink:0;
+    transition:color .2s ease;
+}
+.pt-close:hover{ color:#fff; }
+@media (max-width:640px){
+    .purchase-toast{ max-width:calc(100vw - 28px); left:10px; bottom:14px; }
+}
+</style>
+
+<script>
+    window.__lxToastPoller = true; // beri tahu layout.ejs: poller notifikasi sudah ada di sini (jangan dobel)
+    let ptQueue = [], ptIndex = 0, ptSeenIds = new Set(), ptFirstLoad = true, ptTimer = null, ptDismissedManually = false;
+    function formatRupiah(n) {
+        return 'Rp' + Number(n || 0).toLocaleString('id-ID');
+    }
+
+    async function loadPurchaseNotifs() {
+        try {
+            const res = await fetch('/api/notifications'); // boleh di-cache CDN (data anonim)
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) return;
+
+            // Simpan urutan terbaru (dari server, sudah terurut baru -> lama)
+            ptQueue = data;
+
+            if (ptFirstLoad) {
+                // Load awal: tandai semua sebagai "sudah dilihat", lalu mulai putar
+                // dari yang paling baru supaya user langsung lihat aktivitas nyata.
+                data.forEach(n => ptSeenIds.add(n.id));
+                ptFirstLoad = false;
+                if (!ptDismissedManually) scheduleNextToast(1200);
+                return;
+            }
+
+            // Cek apakah ada transaksi baru sejak polling terakhir (id belum pernah dilihat)
+            const freshOnes = data.filter(n => !ptSeenIds.has(n.id));
+            if (freshOnes.length > 0) {
+                freshOnes.forEach(n => ptSeenIds.add(n.id));
+                // Batasi memori set id supaya tidak numpuk terus
+                if (ptSeenIds.size > 200) {
+                    ptSeenIds = new Set(data.map(n => n.id));
+                }
+                // Transaksi baru sungguhan -> selipkan di depan antrean & tampilkan segera
+                ptQueue = [...freshOnes, ...ptQueue.filter(n => !freshOnes.some(f => f.id === n.id))];
+                ptIndex = 0;
+                if (!ptDismissedManually) scheduleNextToast(400);
+            }
+        } catch (e) { /* diam-diam gagal, tidak mengganggu halaman */ }
+    }
+
+    function scheduleNextToast(delay) {
+        clearTimeout(ptTimer);
+        ptTimer = setTimeout(showNextToast, delay);
+    }
+
+    function showNextToast() {
+        if (ptDismissedManually || !ptQueue.length) return;
+        const item = ptQueue[ptIndex % ptQueue.length];
+        ptIndex++;
+
+        document.getElementById('pt-buyer').textContent = item.buyerName || 'Seseorang';
+        document.getElementById('pt-product').textContent = item.productName || 'Produk';
+        document.getElementById('pt-price').textContent = formatRupiah(item.price);
+
+        const el = document.getElementById('purchase-toast');
+        el.classList.add('pt-show');
+
+        // tampil 4.5 detik, lalu sembunyi, jeda 6 detik, lanjut item berikutnya
+        setTimeout(() => {
+            el.classList.remove('pt-show');
+            scheduleNextToast(6000);
+        }, 4500);
+    }
+
+    function hidePurchaseToast(manual) {
+        document.getElementById('purchase-toast').classList.remove('pt-show');
+        clearTimeout(ptTimer);
+        if (manual) {
+            // user tutup manual -> jangan langsung muncul lagi, tapi tetap cek update baru tiap refresh interval
+            ptDismissedManually = true;
+            setTimeout(() => { ptDismissedManually = false; scheduleNextToast(1000); }, 30000);
+        }
+    }
+
+    loadPurchaseNotifs();
+    // HEMAT VERCEL/SUPABASE: dulu tiap 10 dtk (+ poller kedua di layout.ejs) = ~8 invocation/menit
+    // per tab terbuka, 24 jam nonstop. Sekarang 60 dtk, dan berhenti total saat tab tidak terlihat.
+    setInterval(() => { if (!document.hidden) loadPurchaseNotifs(); }, 60000);
+</script>
