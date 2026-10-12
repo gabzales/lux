@@ -1,0 +1,54 @@
+<%- include('../partials/nav', { active: 'products' }) %>
+<main class="pt-16 pb-12">
+<div class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+    <h1 class="font-display text-xl sm:text-2xl font-bold mb-1">Semua Produk</h1>
+    <p class="text-xs mb-5" style="color:var(--text-3);"><span id="resultCount"><%= products.length %></span> produk tersedia</p>
+
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+        <div class="relative flex-1">
+            <iconify-icon icon="mdi:magnify" class="absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-3);font-size:18px;"></iconify-icon>
+            <input id="prodSearch" type="search" placeholder="Cari produk" class="hm-input" style="padding-left:38px;" oninput="applyFilters()" aria-label="Cari produk">
+        </div>
+        <div class="flex gap-2 overflow-x-auto filter-scroll" role="group" aria-label="Filter">
+            <button class="filter-pill active" data-plat="all" onclick="setPlat('all',this)">Semua</button>
+            <button class="filter-pill" data-plat="ios" onclick="setPlat('ios',this)">iOS</button>
+            <button class="filter-pill" data-plat="android" onclick="setPlat('android',this)">Android</button>
+        </div>
+    </div>
+    <% if (categories && categories.length > 0) { %>
+    <div class="flex gap-2 overflow-x-auto filter-scroll mb-6">
+        <button class="cat-btn active" data-cat-btn="all" onclick="setCat('all',this)">Semua kategori</button>
+        <% categories.forEach(c => { %><button class="cat-btn" data-cat-btn="<%= c %>" onclick="setCat('<%= c %>',this)"><%= categoryLabels[c] || c.toUpperCase() %></button><% }) %>
+    </div>
+    <% } %>
+
+    <div id="grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+        <% products.forEach(product => { %>
+        <%- include('../partials/product-card', { product }) %>
+        <% }) %>
+    </div>
+    <div id="emptyState" class="hidden text-center py-16">
+        <p class="text-sm font-semibold mb-1">Produk tidak ditemukan</p>
+        <p class="text-xs" style="color:var(--text-3);">Coba kata kunci lain atau ganti filter.</p>
+    </div>
+</div>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/purchase-toast') %>
+<%- include('../partials/chat-fab') %>
+<script>
+    let plat='all', cat='all';
+    function mark(btns, el){ btns.forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
+    function setPlat(v, el){ plat=v; mark(document.querySelectorAll('[data-plat].filter-pill'), el); applyFilters(); }
+    function setCat(v, el){ cat=v; mark(document.querySelectorAll('[data-cat-btn]'), el); applyFilters(); }
+    function applyFilters(){
+        const q=(document.getElementById('prodSearch').value||'').trim().toLowerCase();
+        let shown=0;
+        document.querySelectorAll('#grid > article').forEach(a=>{
+            const ok=(!q||a.dataset.name.includes(q)) && (cat==='all'||a.dataset.cat===cat) && (plat==='all'||a.dataset.plat.split(',').includes(plat));
+            a.style.display=ok?'':'none'; if(ok) shown++;
+        });
+        document.getElementById('resultCount').textContent=shown;
+        document.getElementById('emptyState').classList.toggle('hidden', shown>0);
+    }
+</script>

@@ -1,0 +1,30 @@
+<nav id="navbar" class="fixed top-0 left-0 right-0 z-50" style="background:rgba(5,7,13,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6">
+        <div class="flex items-center justify-between" style="height:64px;">
+            <a href="/" class="flex items-center flex-shrink-0" style="text-decoration:none;" aria-label="<%= settings?.siteName || 'Luxzco' %>">
+                <%- include('logo') %>
+            </a>
+            <div class="flex items-center gap-1 sm:gap-2">
+                <div class="hidden md:flex items-center gap-1 mr-2">
+                    <a href="/" class="nav-link<%= active === 'home' ? ' active' : '' %>">Home</a>
+                    <a href="/products" class="nav-link<%= active === 'products' ? ' active' : '' %>">Produk</a>
+                    <a href="/cek-pesanan" class="nav-link<%= active === 'track' ? ' active' : '' %>">Cek Pesanan</a>
+                    <% if (isAdmin) { %><a href="/admin" class="nav-link" style="color:var(--blue);">Admin</a><% } %>
+                    <% if (user) { %>
+                    <a href="/dashboard" class="btn btn-outline btn-pill text-sm px-4 py-1.5 ml-3" style="color:var(--text-1);border-color:rgba(255,255,255,.55);">Dashboard</a>
+                    <% } else { %>
+                    <a href="/login" class="btn btn-outline btn-pill text-sm px-4 py-1.5 ml-3" style="color:var(--text-1);border-color:rgba(255,255,255,.55);">Login</a>
+                    <a href="/register" class="btn btn-primary btn-pill text-sm px-4 py-1.5">Daftar</a>
+                    <% } %>
+                </div>
+                <button id="cart-btn" onclick="openCart()" aria-label="Keranjang" class="relative w-9 h-9 rounded-lg flex items-center justify-center md:hidden" style="background:rgba(255,255,255,.05);border:1px solid var(--border);">
+                    <iconify-icon icon="mdi:cart-outline" style="color:var(--text-2);font-size:18px;"></iconify-icon>
+                    <span id="cart-badge" class="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full text-[9px] font-black text-white items-center justify-center px-1" style="background:var(--red);display:none;"></span>
+                </button>
+                <button onclick="openMenu()" aria-label="Menu" class="md:hidden w-9 h-9 rounded-lg flex items-center justify-center" style="background:rgba(255,255,255,.05);border:1px solid var(--border);">
+                    <iconify-icon icon="mdi:menu" style="color:var(--text-2);font-size:18px;"></iconify-icon>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
