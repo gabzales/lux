@@ -320,7 +320,7 @@ app.use(async (req, res, next) => {
   autogopay.setRuntime(settings && settings.autogopay);
   res.locals.settings = view;
   res.locals.buildVersion = APP_VERSION;
-  res.locals.integrations = { genspay: genspay.isConfigured(), autogopay: autogopay.isConfigured(), autogopaySecret: !!autogopay.getConfig().webhookSecret, ghostseller: ghostseller.isConfigured(), dripstore: dripstore.isConfigured(), appUrl: !!process.env.APP_URL };
+  res.locals.integrations = { genspay: genspay.isConfigured(), autogopay: autogopay.isConfigured(), ghostseller: ghostseller.isConfigured(), dripstore: dripstore.isConfigured(), appUrl: !!process.env.APP_URL };
   res.locals.isAdmin = !!(req.session?.isAdmin || req.session?.userId === 'admin');
   res.locals.user = getSessionUser(req);
   next();
@@ -1283,16 +1283,19 @@ app.post('/webhook/genspay', async (req, res) => {
 });
 
 // ── Webhook AutoGopay ──
-// Payload dipercaya hanya bila signature HMAC cocok; kalau tidak (atau secret belum diisi) status dikonfirmasi
-// ulang lewat endpoint status AutoGopay memakai API key. Balasan 200 = diterima; 503 = minta diulang.
+// Header X-Signature = HMAC-SHA256(rawBody, API key). Payload dipercaya hanya bila signature cocok; kalau tidak,
+// status dikonfirmasi ulang lewat endpoint status AutoGopay memakai API key. Balasan 200 = diterima; 503 = minta diulang.
+// Callback URL diatur di dashboard AutoGopay (bukan per-request).
 const gwCheckAt = new Map();
 app.post('/webhook/autogopay', async (req, res) => {
   const evt = req.body || {};
-  const reference = typeof evt.reference === 'string' ? evt.reference : null;
+  const wtx = (evt.transaction && typeof evt.transaction === 'object') ? evt.transaction : {};
+  const reference = typeof wtx.transaction_id === 'string' && wtx.transaction_id ? wtx.transaction_id : null;
   if (!reference) return res.status(400).json({ error: 'bad_payload' });
-  const sigOk = autogopay.verifyWebhook(req.rawBody, evt);
-  let status = String(evt.status || '').toUpperCase();
-  let paidAmount = evt.amount;
+  if (evt.event && evt.event !== 'transaction.received') return res.json({ ok: true, ignored: 'event' });
+  const sigOk = autogopay.verifyWebhook(req.rawBody, req.get('X-Signature'));
+  let status = autogopay.mapStatus(wtx.status);
+  let paidAmount = wtx.amount;
   if (!sigOk) {
     if (!autogopay.isConfigured()) return res.status(401).json({ error: 'invalid_signature' });
     try {
@@ -1901,10 +1904,10 @@ const createPayment = async (req, settings, { prefix, price }) => {
       return { ...base, orderId, qrString: r.qrString, totalPayment: r.amount, expiredAt: expISO, gateway: 'genspay' };
     }
     if (mode === 'autogopay') {
-      const orderId = autogopay.makeOrderId(prefix);
-      const appUrl = (process.env.APP_URL || '').trim().replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
-      const r = await autogopay.createQris({ orderId, amount: price, callbackUrl: appUrl + '/webhook/autogopay', description: 'Order ' + orderId });
-      return { ...base, orderId, qrString: r.qrString, totalPayment: r.amount, expiredAt: r.expiresAt, gateway: 'autogopay' };
+      // AutoGopay tidak menerima reference dari kita → transaction_id miliknya dipakai sebagai orderId
+      // (kunci untuk cek status & pencocokan webhook).
+      const r = await autogopay.createQris({ amount: price });
+      return { ...base, orderId: r.transactionId, qrString: r.qrString, totalPayment: r.amount, expiredAt: r.expiresAt, gateway: 'autogopay' };
     }
     const r = await createQRISPayment(base.orderId, price, settings);
     return { ...base, qrString: r.qr_string, totalPayment: r.total_payment || price, expiredAt: r.expired_at || null, gateway: 'pakasir' };
@@ -2579,33 +2582,33 @@ app.post('/admin/settings/genspay-test', requireAdmin, async (req, res) => {
   }
 });
 
-// Tes koneksi AutoGopay: membuat 1 invoice uji Rp1.000 lalu langsung dibatalkan. Key tidak pernah ditampilkan.
 // Simpan kredensial AutoGopay dari panel (kosong / bertanda •••• = biarkan nilai lama; clear:true = hapus).
 app.post('/admin/settings/autogopay-save', requireAdmin, async (req, res) => {
   try {
     const settings = await readFresh('settings.json');
     const cur = settings.autogopay || {};
     const pick = (v, old) => (typeof v !== 'string' || !v.trim() || isMaskedSecret(v.trim())) ? (old || '') : v.trim().slice(0, 200);
-    settings.autogopay = req.body?.clear === true ? {} : { apiKey: pick(req.body?.apiKey, cur.apiKey), webhookSecret: pick(req.body?.webhookSecret, cur.webhookSecret) };
+    settings.autogopay = req.body?.clear === true ? {} : { apiKey: pick(req.body?.apiKey, cur.apiKey) };
     await writeDB('settings.json', settings);
     autogopay.setRuntime(settings.autogopay);
-    res.json({ success: true, apiKeyMask: autogopay.mask(settings.autogopay.apiKey), secretMask: autogopay.mask(settings.autogopay.webhookSecret) });
+    res.json({ success: true, apiKeyMask: autogopay.mask(settings.autogopay.apiKey) });
   } catch (e) { res.json({ success: false, message: e.message }); }
 });
 
+// Tes koneksi AutoGopay: membuat 1 QRIS uji Rp1.000, cek statusnya, lalu langsung dibatalkan. Key tidak pernah ditampilkan.
 app.post('/admin/settings/autogopay-test', requireAdmin, async (req, res) => {
-  if (!autogopay.isConfigured()) return res.json({ success: false, message: 'AUTOGOPAY_API_KEY belum diisi di environment (Vercel → Settings → Environment Variables), lalu Redeploy.' });
+  if (!autogopay.isConfigured()) return res.json({ success: false, message: 'AUTOGOPAY_API_KEY belum diisi (panel ini atau Vercel → Settings → Environment Variables, lalu Redeploy).' });
   const appUrl = (process.env.APP_URL || '').trim().replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
-  const ref = autogopay.makeOrderId('TEST');
   try {
-    const q = await autogopay.createQris({ orderId: ref, amount: autogopay.MIN_AMOUNT, callbackUrl: appUrl + '/webhook/autogopay', description: 'Tes koneksi' });
-    let statusOk = true; try { await autogopay.getStatus(ref); } catch (_) { statusOk = false; }
+    const q = await autogopay.createQris({ amount: autogopay.TEST_AMOUNT });
+    let statusOk = true; try { await autogopay.getStatus(q.transactionId); } catch (_) { statusOk = false; }
+    let cancelled = false; try { cancelled = await autogopay.cancelQris(q.transactionId); } catch (_) { /* kedaluwarsa sendiri */ }
     const validQris = /^000201/.test(q.qrString) && q.qrString.length > 60;
     res.json({ success: true, qrString: q.qrString, validQris, statusOk, expiresAt: q.expiresAt,
-      message: `Terhubung ✔ API key diterima. QR dinamis ${validQris ? 'VALID (format QRIS/EMV)' : 'dibuat tapi formatnya tidak lazim'}; cek status ${statusOk ? 'OK' : 'GAGAL (cek endpoint status)'}. Invoice uji kedaluwarsa sendiri.`, webhookUrl: appUrl + '/webhook/autogopay', appUrlSet: !!process.env.APP_URL, secretSet: !!autogopay.getConfig().webhookSecret });
+      message: `Terhubung ✔ API key diterima. QR dinamis ${validQris ? 'VALID (format QRIS/EMV)' : 'dibuat tapi formatnya tidak lazim'}; cek status ${statusOk ? 'OK' : 'GAGAL (cek endpoint status)'}. QR uji ${cancelled ? 'sudah dibatalkan' : 'kedaluwarsa sendiri'}.`, webhookUrl: appUrl + '/webhook/autogopay', appUrlSet: !!process.env.APP_URL });
   } catch (e) {
     const c = autogopay.getConfig();
-    res.json({ success: false, message: 'AutoGopay: ' + e.message + (e.status ? ` [HTTP ${e.status}]` : '') + ` — key dari ${c.source === 'panel' ? 'panel' : 'env Vercel'}, panjang ${c.apiKey.length} karakter, awalan "${c.apiKey.slice(0, 4)}", server ${c.baseUrl}. Pastikan key utuh, aktif, dan akun AutoGopay punya langganan aktif.` });
+    res.json({ success: false, message: 'AutoGopay: ' + e.message + (e.status ? ` [HTTP ${e.status}]` : '') + ` — key dari ${c.source === 'panel' ? 'panel' : 'env Vercel'}, panjang ${c.apiKey.length} karakter, awalan "${c.apiKey.slice(0, 4)}", server ${c.baseUrl}. Pastikan key utuh dan aktif.` });
   }
 });
 
