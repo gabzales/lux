@@ -27,12 +27,15 @@ const REF_RE = /^[A-Za-z0-9_-]{1,50}$/;
 
 // Kredensial dari Admin → Settings (tersimpan di settings.autogopay); env dipakai bila kosong.
 let runtime = { apiKey: '', webhookSecret: '' };
-const setRuntime = (c) => { runtime = { apiKey: String((c && c.apiKey) || '').trim(), webhookSecret: String((c && c.webhookSecret) || '').trim() }; };
+// Bersihkan salah tempel: spasi/enter, tanda kutip, awalan "Bearer " / "X-API-Key:".
+const cleanKey = (v) => String(v || '').trim().replace(/^(x-api-key\s*:|authorization\s*:|bearer)\s*/i, '').replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, '');
+const setRuntime = (c) => { runtime = { apiKey: cleanKey(c && c.apiKey), webhookSecret: cleanKey(c && c.webhookSecret) }; };
 const mask = (v) => (v ? '••••' + String(v).slice(-4) : '');
 
 const getConfig = () => ({
-  apiKey: runtime.apiKey || (process.env.AUTOGOPAY_API_KEY || '').trim(),
-  webhookSecret: runtime.webhookSecret || (process.env.AUTOGOPAY_WEBHOOK_SECRET || '').trim(),
+  apiKey: runtime.apiKey || cleanKey(process.env.AUTOGOPAY_API_KEY),
+  webhookSecret: runtime.webhookSecret || cleanKey(process.env.AUTOGOPAY_WEBHOOK_SECRET),
+  source: runtime.apiKey ? 'panel' : 'env',
   baseUrl: (process.env.AUTOGOPAY_BASE_URL || DEFAULT_BASE).trim().replace(/\/+$/, ''),
 });
 const isConfigured = () => !!getConfig().apiKey;
@@ -55,7 +58,12 @@ async function call(path, { method = 'GET', body } = {}) {
   const { apiKey, baseUrl } = getConfig();
   if (!apiKey) throw new AutogopayError('not_configured', 'AUTOGOPAY_API_KEY belum diisi di environment.');
   try {
-    return await requestJson(baseUrl + path, { method, headers: { 'X-API-Key': apiKey }, body, timeoutMs: 15000 });
+    let r = await requestJson(baseUrl + path, { method, headers: { 'X-API-Key': apiKey }, body, timeoutMs: 15000 });
+    if (r.status === 401) { // coba metode header kedua (Bearer) sebelum menyerah
+      const r2 = await requestJson(baseUrl + path, { method, headers: { Authorization: 'Bearer ' + apiKey }, body, timeoutMs: 15000 });
+      if (r2.status !== 401) r = r2;
+    }
+    return r;
   } catch (e) {
     throw new AutogopayError(e.code === 'timeout' ? 'timeout' : 'network', e.message);
   }

@@ -2604,7 +2604,8 @@ app.post('/admin/settings/autogopay-test', requireAdmin, async (req, res) => {
     res.json({ success: true, qrString: q.qrString, validQris, statusOk, expiresAt: q.expiresAt,
       message: `Terhubung ✔ API key diterima. QR dinamis ${validQris ? 'VALID (format QRIS/EMV)' : 'dibuat tapi formatnya tidak lazim'}; cek status ${statusOk ? 'OK' : 'GAGAL (cek endpoint status)'}. Invoice uji kedaluwarsa sendiri.`, webhookUrl: appUrl + '/webhook/autogopay', appUrlSet: !!process.env.APP_URL, secretSet: !!autogopay.getConfig().webhookSecret });
   } catch (e) {
-    res.json({ success: false, message: 'AutoGopay: ' + e.message });
+    const c = autogopay.getConfig();
+    res.json({ success: false, message: 'AutoGopay: ' + e.message + (e.status ? ` [HTTP ${e.status}]` : '') + ` — key dari ${c.source === 'panel' ? 'panel' : 'env Vercel'}, panjang ${c.apiKey.length} karakter, awalan "${c.apiKey.slice(0, 4)}", server ${c.baseUrl}. Pastikan key utuh, aktif, dan akun AutoGopay punya langganan aktif.` });
   }
 });
 
