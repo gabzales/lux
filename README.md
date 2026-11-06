@@ -74,11 +74,11 @@ Deep blue + hitam. Token warna ada di `views/layout.ejs` (`:root`). Font: Chakra
 3. Alur: checkout membuat QRIS di GensPay → pembeli bayar → GensPay memanggil `POST /webhook/genspay` (signature `SHA256(rawBody + API_KEY)` diverifikasi) → key otomatis dikirim. Halaman pembeli hanya membaca database (tidak memanggil GensPay), jadi hemat kuota Vercel/Supabase.
 4. Bila GensPay error saat membuat QR dan gambar QRIS statis tersedia, checkout otomatis jatuh ke QRIS statis (konfirmasi manual).
 
-## Auto-restock (Drip Store / Ghostseller)
-1. Isi `DRIPSTORE_API_TOKEN` (dan/atau `GHOSTSELLER_API_KEY`) di environment Vercel, Redeploy. Cek di Admin → Pengaturan → *Auto-Restock Provider* → tombol Tes.
+## Auto-restock (Drip Store / Ghostseller / Gneseller)
+1. Isi `DRIPSTORE_API_TOKEN` dan/atau `GHOSTSELLER_API_KEY` dan/atau `GNESELLER_API_KEY` + `GNESELLER_API_URL` (domain panel Gneseller) di environment Vercel, Redeploy. Cek di Admin → Pengaturan → *Auto-Restock Provider* → tombol Tes.
 2. Admin → Produk → Edit → kartu **Auto-Restock**: pilih provider, pilih produknya, petakan tiap paket (hari/jam) ke varian. Kosong = stok lokal saja.
 3. Saat pembayaran lunas: stok lokal dipakai dulu; kalau habis, key diambil dari provider.
-   - **Ghostseller**: `idempotencyKey` = kode order → retry tidak pernah menerbitkan 2 key.
+   - **Ghostseller / Gneseller** (Partner API v1, kode klien sama di `partnerapi.js`): `idempotencyKey` = kode order → retry tidak pernah menerbitkan 2 key.
    - **Drip Store** (tidak punya idempotency): percobaan dicatat ke DB *sebelum* memanggil provider. Timeout/koneksi putus/5xx = "saldo mungkin terpotong" → **tidak** diulang otomatis, pesanan ditandai manual + WA ke admin (cek Riwayat di dashboard Drip Store dulu). Hanya kegagalan yang pasti belum diproses (429, saldo/stok habis, 401/403) yang boleh dicoba lagi.
    - Error sementara (429) → pesanan tetap pending dan dicoba lagi otomatis. Saldo/stok habis/akses ditolak → ditandai manual + paket itu "libur" 10 menit agar tak ada yang bayar untuk stok yang tak ada.
 4. Varian Drip Store Bala Mod mode `v1` (butuh Android ID pembeli) ditandai *tidak didukung* dan tidak bisa dipetakan; mode `both` memakai `v2` (key langsung).

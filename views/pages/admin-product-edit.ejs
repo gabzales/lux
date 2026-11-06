@@ -154,7 +154,7 @@ const pageTitle = 'Edit Produk';
   <!-- ── AUTO-RESTOCK GHOSTSELLER ── -->
   <div class="section-card" id="gsCard">
     <h2 class="text-sm font-black text-white mb-1 flex items-center gap-2">
-      <iconify-icon icon="mdi:package-variant-closed-check" class="text-blue-400 text-lg"></iconify-icon> Auto-Restock (Ghostseller / Drip Store)
+      <iconify-icon icon="mdi:package-variant-closed-check" class="text-blue-400 text-lg"></iconify-icon> Auto-Restock (Ghostseller / Gneseller / Drip Store)
     </h2>
     <p class="text-[11px] text-zinc-500 mb-3">Stok lokal dipakai dulu. Kalau habis, key diambil otomatis dari provider saat pembayaran lunas. Pilih provider lalu petakan tiap paket di atas ke varian/durasinya; yang dibiarkan kosong = stok lokal saja.</p>
     <div id="gsBody"><button type="button" onclick="loadGsCatalog(false)" class="w-full py-2.5 rounded-xl text-xs font-bold text-blue-400 border border-dashed border-blue-500/30 hover:bg-blue-500/10 transition-all">Muat katalog provider</button></div>
@@ -374,16 +374,16 @@ function removePricingRow(i) {
   renderGs();
 }
 
-// ─── Auto-Restock (Ghostseller / Drip Store) ───
-const INTEG = <%- JSON.stringify({ ghostseller: !!(integrations && integrations.ghostseller), dripstore: !!(integrations && integrations.dripstore) }) %>;
-const PROV_LABEL = { ghostseller: 'Ghostseller', dripstore: 'Drip Store' };
+// ─── Auto-Restock (Ghostseller / Gneseller / Drip Store) ───
+const INTEG = <%- JSON.stringify({ ghostseller: !!(integrations && integrations.ghostseller), gneseller: !!(integrations && integrations.gneseller), dripstore: !!(integrations && integrations.dripstore) }) %>;
+const PROV_LABEL = { ghostseller: 'Ghostseller', gneseller: 'Gneseller', dripstore: 'Drip Store' };
 let gsCatalog = null, gsState = { provider: 'ghostseller', productId: '', durations: {} }, gsDirty = false;
 const tokenOf = o => String(o.days) + (o.unit === 'hour' ? 'h' : '');
 const escH = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function initGs() {
   const m = currentProduct && currentProduct.gsMap;
-  const firstReady = INTEG.dripstore && !INTEG.ghostseller ? 'dripstore' : 'ghostseller';
+  const firstReady = ['ghostseller', 'gneseller', 'dripstore'].find(k => INTEG[k]) || 'ghostseller';
   gsState = { provider: m ? (m.provider || 'ghostseller') : firstReady, productId: m ? m.productId : '', durations: m && m.durations ? { ...m.durations } : {} };
   gsDirty = false;
   if (m) loadGsCatalog(false); // sudah ada mapping → langsung tampilkan
@@ -415,7 +415,7 @@ function gsSuggest(o, gp) {
   const usable = gp.durations.filter(d => !d.unsupported);
   const exact = usable.filter(d => d.n != null && d.n === o.days && d.unit === (o.unit === 'hour' ? 'hour' : 'day'));
   if (exact.length) { const inStock = exact.find(d => d.unlimited || d.stock > 0); return (inStock || exact[0]).id; }
-  // Ghostseller (tanpa n/unit): jam → ada "N HOUR/JAM" di label; hari → days sama
+  // Cadangan bila varian tanpa n/unit: jam → ada "N HOUR/JAM" di label; hari → days sama
   if (o.unit === 'hour') {
     const re = new RegExp('\\b' + o.days + '\\s*(HOURS?|JAM)\\b', 'i');
     const hit = usable.find(d => re.test(d.label));
@@ -463,7 +463,9 @@ async function saveGsMap() {
   const r = await fetch('/admin/product/' + currentProduct.id + '/gs-map', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: gsState.provider, productId: gsState.productId, durations }) });
   const d = await r.json();
   if (!d.success) { showToast('Mapping auto-restock: ' + (d.message || 'gagal'), 'error'); return false; }
-  currentProduct.gsMap = d.gsMap; gsDirty = false; renderGs(); return true;
+  currentProduct.gsMap = d.gsMap; gsDirty = false; renderGs();
+  if (d.warnings && d.warnings.length) showToast('⚠ ' + d.warnings.join(' | '), 'error');
+  return true;
 }
 
 // ─── Keys Mode ───

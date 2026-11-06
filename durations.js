@@ -18,12 +18,17 @@ const normUnit = (u) => (/^(JAM|HOURS?|HRS?|H)$/i.test(u) ? 'hour' : 'day');
 function parseDuration(label) {
   const s = String(label || '');
   let m, last = null;
+  const all = [];
   UNIT_RE.lastIndex = 0;
-  while ((m = UNIT_RE.exec(s)) !== null) last = m; // durasi ada di akhir label → ambil kemunculan terakhir
+  while ((m = UNIT_RE.exec(s)) !== null) { last = m; all.push({ n: parseInt(m[1], 10), unit: normUnit(m[2]) }); } // durasi ada di akhir label → ambil kemunculan terakhir
   if (!last) return null;
   const n = parseInt(last[1], 10);
   if (!(n > 0)) return null;
-  return { n, unit: normUnit(last[2]) };
+  const res = { n, unit: normUnit(last[2]) };
+  // Label ganda yang setara, mis. "1 DAY (24H)" / "24 HOURS (1 DAY)": jangan sampai "(24H)" mengalahkan "1 DAY".
+  // Bila ada kemunculan lain dengan total jam sama, pilih yang berbentuk HARI.
+  const eq = all.find((x) => x.unit === 'day' && x.n > 0 && x.n * 24 === (res.unit === 'hour' ? res.n : res.n * 24));
+  return eq ? { n: eq.n, unit: 'day' } : res;
 }
 
 /** Token unik: hari -> "3", jam -> "3h" */

@@ -21,6 +21,7 @@ if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
 const db = require('./supabase');
 const dur = require('./durations');
 const ghostseller = require('./ghostseller');
+const gneseller = require('./gneseller');
 const dripstore = require('./dripstore');
 const genspay = require('./genspay');
 const autogopay = require('./autogopay');
@@ -320,7 +321,7 @@ app.use(async (req, res, next) => {
   autogopay.setRuntime(settings && settings.autogopay);
   res.locals.settings = view;
   res.locals.buildVersion = APP_VERSION;
-  res.locals.integrations = { genspay: genspay.isConfigured(), autogopay: autogopay.isConfigured(), ghostseller: ghostseller.isConfigured(), dripstore: dripstore.isConfigured(), appUrl: !!process.env.APP_URL };
+  res.locals.integrations = { genspay: genspay.isConfigured(), autogopay: autogopay.isConfigured(), ghostseller: ghostseller.isConfigured(), gneseller: gneseller.isConfigured(), dripstore: dripstore.isConfigured(), appUrl: !!process.env.APP_URL };
   res.locals.isAdmin = !!(req.session?.isAdmin || req.session?.userId === 'admin');
   res.locals.user = getSessionUser(req);
   next();
@@ -737,7 +738,7 @@ const countKeysForToken = (keys, token) => {
 // ── Auto-restock (provider: Ghostseller | Drip Store — dipilih per produk) ──
 // product.gsMap = { provider, productId, durations: { '<token>': '<durationId/variantId>' }, cooldown: { '<token>': ISO } }
 // (data lama tanpa `provider` = Ghostseller)
-const PROVIDERS = { ghostseller, dripstore };
+const PROVIDERS = { ghostseller, gneseller, dripstore };
 const GS_COOLDOWN_MS = 10 * 60 * 1000;
 const gsMappingFor = (product, token) => {
   const m = product && product.gsMap;
@@ -797,7 +798,7 @@ const warmProviders = async (products) => {
 const GS_REASON_TEXT = {
   insufficient_balance: 'Saldo akun provider tidak cukup — top up saldo lalu proses manual.',
   out_of_stock: 'Stok di provider habis untuk paket ini.',
-  unauthorized: 'API key/token provider ditolak — cek environment (GHOSTSELLER_API_KEY / DRIPSTORE_API_TOKEN).',
+  unauthorized: 'API key/token provider ditolak — cek environment (GHOSTSELLER_API_KEY / GNESELLER_API_KEY / DRIPSTORE_API_TOKEN).',
   invalid_product_or_duration: 'Mapping produk/durasi provider tidak valid — perbarui di Admin → Produk.',
   not_configured: 'API key provider belum diisi di environment.',
   gs_not_configured: 'API key provider belum diisi di environment.',
@@ -1212,7 +1213,7 @@ app.get('/__build', (req, res) => {
   res.json({
     app: 'vipluxzco', version: APP_VERSION,
     commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || null,
-    modules: { genspay: true, dripstore: true, ghostseller: true, durations: true },
+    modules: { genspay: true, dripstore: true, ghostseller: true, gneseller: true, durations: true },
   });
 });
 
@@ -2612,12 +2613,12 @@ app.post('/admin/settings/autogopay-test', requireAdmin, async (req, res) => {
   }
 });
 
-// Katalog provider auto-restock (server-side; API key/token tidak pernah sampai ke browser). ?provider=ghostseller|dripstore
+// Katalog provider auto-restock (server-side; API key/token tidak pernah sampai ke browser). ?provider=ghostseller|gneseller|dripstore
 app.get('/admin/autorestock/catalog', requireAdmin, async (req, res) => {
   const prov = PROVIDERS[String(req.query.provider || 'ghostseller')];
   if (!prov) return res.json({ success: false, message: 'Provider tidak dikenal' });
   if (!prov.isConfigured()) {
-    const envName = prov.name === 'dripstore' ? 'DRIPSTORE_API_TOKEN' : 'GHOSTSELLER_API_KEY';
+    const envName = prov.envKey ? (prov.envUrl && prov.name === 'gneseller' ? `${prov.envKey} dan ${prov.envUrl}` : prov.envKey) : 'DRIPSTORE_API_TOKEN';
     return res.json({ success: false, message: `${envName} belum diisi di environment (Vercel → Settings → Environment Variables), lalu Redeploy.` });
   }
   try {
@@ -2663,6 +2664,7 @@ app.post('/admin/product/:id/gs-map', requireAdmin, async (req, res) => {
       if (id) durations[token] = id;
     }
     // Validasi ke katalog bila terjangkau (cegah salah ketik id / varian yang butuh Android ID)
+    const warnings = [];
     if (prov.isConfigured()) {
       try {
         const cat = await prov.fetchCatalog();
@@ -2672,12 +2674,18 @@ app.post('/admin/product/:id/gs-map', requireAdmin, async (req, res) => {
           const d = gp.durations.find(d => d.id === id);
           if (!d) return res.json({ success: false, message: `Varian "${id}" (untuk ${t}) tidak ada di produk provider itu.` });
           if (d.unsupported) return res.json({ success: false, message: `Varian "${d.label}" tidak didukung: ${d.unsupported}.` });
+          // Cegah "paket 1 Hari terkirim 1 Jam": bandingkan satuan/angka token paket dengan durasi varian (dibaca dari label).
+          const tm = /^(\d+)(h?)$/.exec(t);
+          if (tm && d.n > 0) {
+            const tN = parseInt(tm[1], 10), tUnit = tm[2] ? 'hour' : 'day';
+            if (d.unit !== tUnit || d.n !== tN) warnings.push(`Paket ${dur.displayLabel(tN, tUnit)} dipetakan ke "${d.label}" yang durasinya ${dur.displayLabel(d.n, d.unit)} — pastikan ini disengaja.`);
+          }
         }
       } catch { /* katalog tak terjangkau: simpan saja, divalidasi lagi saat order */ }
     }
     product.gsMap = { provider: provName, productId: gsProductId, durations, updatedAt: new Date().toISOString() };
     await writeDB('products.json', products);
-    res.json({ success: true, gsMap: product.gsMap });
+    res.json({ success: true, gsMap: product.gsMap, warnings });
   } catch (e) { res.json({ success: false, message: e.message }); }
 });
 
