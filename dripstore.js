@@ -28,11 +28,15 @@ const DEFAULT_URL = 'https://dripclientstore.shop/api/v1';
 const GENERATE_TIMEOUT_MS = 30000;
 const CATALOG_TIMEOUT_MS = 12000;
 
+// Kredensial dari Admin → Pengaturan → Auto-Restock Provider (settings.providers.dripstore); env dipakai bila kosong.
+let runtime = { apiKey: '', url: '' };
+const setRuntime = (c) => { runtime = { apiKey: String((c && c.apiKey) || '').trim().replace(/\s+/g, ''), url: String((c && c.url) || '').trim() }; };
 const getConfig = () => {
-  const token = (process.env.DRIPSTORE_API_TOKEN || '').trim();
-  let base = (process.env.DRIPSTORE_API_URL || DEFAULT_URL).trim().replace(/\/+$/, '');
+  const token = runtime.apiKey || (process.env.DRIPSTORE_API_TOKEN || '').trim();
+  let base = (runtime.url || process.env.DRIPSTORE_API_URL || DEFAULT_URL).trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(base)) base = 'https://' + base;
   if (!/\/api\/v1$/i.test(base)) base += '/api/v1';
-  return { token, base };
+  return { token, base, source: runtime.apiKey ? 'panel' : 'env' };
 };
 const isConfigured = () => !!getConfig().token;
 
@@ -66,7 +70,7 @@ function classifyFailure(j) {
 
 async function call(endpoint, { method = 'GET', params = {}, timeoutMs = 15000, generate = false } = {}) {
   const { token, base } = getConfig();
-  if (!token) throw new DripStoreError('not_configured', 'DRIPSTORE_API_TOKEN belum diisi di environment.');
+  if (!token) throw new DripStoreError('not_configured', 'Token Drip Store belum diisi (Admin → Pengaturan → Auto-Restock Provider).');
   let url = base + '/' + endpoint;
   const headers = { 'X-API-Token': token };
   let body;
@@ -82,7 +86,7 @@ async function call(endpoint, { method = 'GET', params = {}, timeoutMs = 15000, 
   try {
     r = await requestJson(url, { method, headers, body, timeoutMs });
   } catch (e) {
-    if (e.code === 'bad_url') throw new DripStoreError('bad_config', 'DRIPSTORE_API_URL tidak valid.');
+    if (e.code === 'bad_url') throw new DripStoreError('bad_config', 'URL Drip Store tidak valid.');
     // Untuk generate: putus di tengah jalan = TIDAK DIKETAHUI apakah sudah diproses.
     throw new DripStoreError(e.code === 'timeout' ? 'timeout' : 'network', e.message, { transient: !generate, maybeCharged: generate });
   }
@@ -299,7 +303,7 @@ function redact(x, keyName = '') {
 
 async function probe() {
   const { token, base } = getConfig();
-  if (!token) throw new DripStoreError('not_configured', 'DRIPSTORE_API_TOKEN belum diisi di environment.');
+  if (!token) throw new DripStoreError('not_configured', 'Token Drip Store belum diisi (Admin → Pengaturan → Auto-Restock Provider).');
   const scrub = (t) => String(t).split(token).join('[TOKEN]');
   const report = { when: new Date().toISOString(), base, calls: [] };
   try { report.egressIp = scrub((await requestJson('https://api.ipify.org', { timeoutMs: 6000 })).text.trim().slice(0, 45)); }
@@ -339,6 +343,6 @@ async function probe() {
 module.exports = {
   probe,
   name: 'dripstore', label: 'Drip Store', idempotent: false,
-  isConfigured, fetchCatalog, getBalance, isListed, peekAvailability, generateKey, DripStoreError, _normalizeCatalog: normalizeCatalog,
+  isConfigured, setRuntime, fetchCatalog, getBalance, isListed, peekAvailability, generateKey, DripStoreError, _normalizeCatalog: normalizeCatalog,
   _getConfig: getConfig, _resetCache: () => { catalogCache = { at: 0, data: null }; balanceCache = { at: 0, data: null }; },
 };

@@ -13,7 +13,34 @@ const { URL } = require('url');
 
 const MAX_BYTES = 1024 * 1024; // 1 MB — respons API provider tidak perlu lebih dari ini
 
-function requestJson(urlStr, { method = 'GET', headers = {}, body, timeoutMs = 15000 } = {}) {
+const MAX_REDIRECTS = 3;
+const bareHost = (h) => String(h || '').toLowerCase().replace(/^www\./, '');
+
+/**
+ * Ikuti redirect (301/302/303/307/308) maks. 3x. Header (termasuk API key) HANYA diteruskan bila host tujuan
+ * sama dengan host asal atau hanya beda awalan "www." (mis. apex → www); selain itu redirect ditolak.
+ * 307/308 mempertahankan method+body; 301/302/303 pada POST berubah jadi GET tanpa body (perilaku standar).
+ */
+async function requestJson(urlStr, opts = {}) {
+  let url = urlStr, o = opts;
+  for (let hop = 0; ; hop++) {
+    const r = await requestJsonOnce(url, o);
+    const loc = r.headers && r.headers.location;
+    if (![301, 302, 303, 307, 308].includes(r.status) || !loc) return r;
+    if (hop >= MAX_REDIRECTS) { const e = new Error('Terlalu banyak redirect'); e.code = 'network'; throw e; }
+    let next, from;
+    try { from = new URL(url); next = new URL(loc, url); } catch { const e = new Error('Redirect tidak valid'); e.code = 'bad_url'; throw e; }
+    if (next.protocol !== 'https:' && next.protocol !== 'http:') { const e = new Error('Redirect ke protokol tidak didukung'); e.code = 'bad_url'; throw e; }
+    if (bareHost(next.hostname) !== bareHost(from.hostname) || (from.protocol === 'https:' && next.protocol !== 'https:')) {
+      const e = new Error('Redirect ke host lain ditolak (' + next.hostname + ')'); e.code = 'network'; throw e;
+    }
+    const keepMethod = r.status === 307 || r.status === 308;
+    o = keepMethod ? o : { ...o, method: 'GET', body: undefined };
+    url = next.toString();
+  }
+}
+
+function requestJsonOnce(urlStr, { method = 'GET', headers = {}, body, timeoutMs = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     let u;
     try { u = new URL(urlStr); } catch { const e = new Error('URL tidak valid'); e.code = 'bad_url'; return reject(e); }

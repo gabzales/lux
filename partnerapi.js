@@ -29,11 +29,17 @@ const CATALOG_TIMEOUT_MS = 12000;
 const TRANSIENT_CODES = new Set(['rate_limited', 'provider_error', 'timeout', 'network']);
 
 function createPartnerClient({ name, label, envKey, envUrl, defaultUrl = '' }) {
+  // Kredensial dari Admin → Pengaturan → Auto-Restock Provider (settings.providers.<name>); env dipakai bila kosong.
+  let runtime = { apiKey: '', url: '' };
+  const cleanKey = (v) => String(v || '').trim().replace(/^(x-api-key\s*:|authorization\s*:|bearer)\s*/i, '').replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, '');
+  const setRuntime = (c) => { runtime = { apiKey: cleanKey(c && c.apiKey), url: String((c && c.url) || '').trim() }; };
+
   const getConfig = () => {
-    const apiKey = (process.env[envKey] || '').trim();
-    let base = (process.env[envUrl] || defaultUrl || '').trim().replace(/\/+$/, '');
+    const apiKey = runtime.apiKey || cleanKey(process.env[envKey]);
+    let base = (runtime.url || process.env[envUrl] || defaultUrl || '').trim().replace(/\/+$/, '');
+    if (base && !/^https?:\/\//i.test(base)) base = 'https://' + base;
     if (base && !/\/api\/v1\/partner$/i.test(base)) base += '/api/v1/partner';
-    return { apiKey, base };
+    return { apiKey, base, source: runtime.apiKey ? 'panel' : 'env' };
   };
 
   // Konfigurasi dianggap lengkap bila key DAN URL ada (gneseller tidak punya URL bawaan).
@@ -59,7 +65,7 @@ function createPartnerClient({ name, label, envKey, envUrl, defaultUrl = '' }) {
 
   async function call(path, opts) {
     const { apiKey, base } = getConfig();
-    if (!apiKey || !base) throw new PartnerError('not_configured', `${envKey}${base ? '' : ' / ' + envUrl} belum diisi di environment.`);
+    if (!apiKey || !base) throw new PartnerError('not_configured', `${label}: ${apiKey ? '' : 'API Key'}${!apiKey && !base ? ' dan ' : ''}${base ? '' : 'URL panel'} belum diisi (Admin → Pengaturan → Auto-Restock Provider).`);
     let r;
     try {
       r = await requestJson(base + path, { ...opts, headers: { 'X-API-Key': apiKey } });
@@ -143,7 +149,7 @@ function createPartnerClient({ name, label, envKey, envUrl, defaultUrl = '' }) {
 
   return {
     name, label, envKey, envUrl, idempotent: true,
-    isConfigured, fetchCatalog, isListed, generateKey, PartnerError,
+    isConfigured, setRuntime, fetchCatalog, isListed, generateKey, PartnerError,
     _getConfig: getConfig, _resetCache: () => { catalogCache = { at: 0, data: null }; },
   };
 }

@@ -318,10 +318,17 @@ app.use(async (req, res, next) => {
   delete view.fonnteToken;
   delete view.pakasir;
   delete view.autogopay;
+  delete view.providers; // kredensial auto-restock (Ghostseller/Gneseller/Drip Store) tidak pernah ke view publik
   autogopay.setRuntime(settings && settings.autogopay);
+  for (const [n, p] of Object.entries(PROVIDERS)) p.setRuntime && p.setRuntime(settings && settings.providers && settings.providers[n]);
   res.locals.settings = view;
   res.locals.buildVersion = APP_VERSION;
   res.locals.integrations = { genspay: genspay.isConfigured(), autogopay: autogopay.isConfigured(), ghostseller: ghostseller.isConfigured(), gneseller: gneseller.isConfigured(), dripstore: dripstore.isConfigured(), appUrl: !!process.env.APP_URL };
+  // Ringkasan kredensial provider untuk halaman admin (key disamarkan, tidak pernah utuh).
+  res.locals.providerInfo = Object.fromEntries(Object.entries(PROVIDERS).map(([n, p]) => {
+    const c = p._getConfig(); const k = c.apiKey || c.token || '';
+    return [n, { configured: p.isConfigured(), source: c.source, keyMask: k ? '••••' + k.slice(-4) : '', url: (settings && settings.providers && settings.providers[n] && settings.providers[n].url) || '' }];
+  }));
   res.locals.isAdmin = !!(req.session?.isAdmin || req.session?.userId === 'admin');
   res.locals.user = getSessionUser(req);
   next();
@@ -798,10 +805,10 @@ const warmProviders = async (products) => {
 const GS_REASON_TEXT = {
   insufficient_balance: 'Saldo akun provider tidak cukup — top up saldo lalu proses manual.',
   out_of_stock: 'Stok di provider habis untuk paket ini.',
-  unauthorized: 'API key/token provider ditolak — cek environment (GHOSTSELLER_API_KEY / GNESELLER_API_KEY / DRIPSTORE_API_TOKEN).',
+  unauthorized: 'API key/token provider ditolak — cek lagi di Admin → Pengaturan → Auto-Restock Provider.',
   invalid_product_or_duration: 'Mapping produk/durasi provider tidak valid — perbarui di Admin → Produk.',
-  not_configured: 'API key provider belum diisi di environment.',
-  gs_not_configured: 'API key provider belum diisi di environment.',
+  not_configured: 'API key provider belum diisi (Admin → Pengaturan → Auto-Restock Provider).',
+  gs_not_configured: 'API key provider belum diisi (Admin → Pengaturan → Auto-Restock Provider).',
   no_stock: 'Stok lokal kosong dan durasi ini belum dipetakan ke provider auto-restock.',
   cloudflare_challenge: 'Cloudflare menahan request ke provider — IP server (Vercel) belum di-allowlist oleh penyedia. Hubungi penyedia.',
   ip_blocked: 'IP server ditolak provider (allowlist IP). Hubungi penyedia.',
@@ -2613,13 +2620,36 @@ app.post('/admin/settings/autogopay-test', requireAdmin, async (req, res) => {
   }
 });
 
+// Simpan kredensial provider auto-restock dari panel (disimpan di settings.providers.<nama>).
+// apiKey kosong / bertanda •••• = biarkan nilai lama; url kosong = pakai bawaan; clear:true = hapus.
+app.post('/admin/settings/provider-save', requireAdmin, async (req, res) => {
+  try {
+    const name = String(req.body?.provider || '');
+    if (!PROVIDERS[name]) return res.json({ success: false, message: 'Provider tidak dikenal' });
+    const settings = await readFresh('settings.json');
+    settings.providers = settings.providers || {};
+    const cur = settings.providers[name] || {};
+    if (req.body?.clear === true) { delete settings.providers[name]; }
+    else {
+      const k = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : '';
+      let url = typeof req.body?.url === 'string' ? req.body.url.trim().slice(0, 300) : (cur.url || '');
+      if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+      if (url) { try { new URL(url); } catch { return res.json({ success: false, message: 'URL tidak valid' }); } }
+      settings.providers[name] = { apiKey: (!k || isMaskedSecret(k)) ? (cur.apiKey || '') : k.slice(0, 300), url };
+    }
+    await writeDB('settings.json', settings);
+    const p = PROVIDERS[name]; p.setRuntime(settings.providers[name]); p._resetCache && p._resetCache();
+    const c = p._getConfig(); const key = c.apiKey || c.token || '';
+    res.json({ success: true, configured: p.isConfigured(), keyMask: key ? '••••' + key.slice(-4) : '', url: (settings.providers[name] || {}).url || '' });
+  } catch (e) { res.json({ success: false, message: e.message }); }
+});
+
 // Katalog provider auto-restock (server-side; API key/token tidak pernah sampai ke browser). ?provider=ghostseller|gneseller|dripstore
 app.get('/admin/autorestock/catalog', requireAdmin, async (req, res) => {
   const prov = PROVIDERS[String(req.query.provider || 'ghostseller')];
   if (!prov) return res.json({ success: false, message: 'Provider tidak dikenal' });
   if (!prov.isConfigured()) {
-    const envName = prov.envKey ? (prov.envUrl && prov.name === 'gneseller' ? `${prov.envKey} dan ${prov.envUrl}` : prov.envKey) : 'DRIPSTORE_API_TOKEN';
-    return res.json({ success: false, message: `${envName} belum diisi di environment (Vercel → Settings → Environment Variables), lalu Redeploy.` });
+    return res.json({ success: false, message: `${prov.label} belum diisi: buka Admin → Pengaturan → Auto-Restock Provider, isi ${prov.name === 'gneseller' ? 'API Key + URL panel' : 'API Key/Token'}, klik Simpan.` });
   }
   try {
     const products = await prov.fetchCatalog({ force: req.query.refresh === '1' });

@@ -901,12 +901,20 @@ textarea.hm-input{resize:vertical;min-height:80px;}
             <iconify-icon icon="mdi:package-variant-closed-check"></iconify-icon> Auto-Restock Provider
             <span class="ml-auto text-[9px] font-normal text-zinc-600">build: <%= typeof buildVersion !== 'undefined' ? buildVersion : 'LAMA (tanpa penanda)' %></span>
         </div>
-        <p class="text-[11px] text-zinc-500 mb-3">Kalau stok key lokal habis, key diambil otomatis dari provider saat pembayaran lunas (saldo akun provider dipotong). Provider &amp; pemetaan durasi diatur per produk: <b>Produk → Edit → Auto-Restock</b>. Token disimpan di environment, bukan di database.</p>
-        <div class="rounded-xl p-3 text-[11px] space-y-1.5 mb-3" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);">
-            <div><%= integrations && integrations.dripstore ? '✅' : '❌' %> <b>Drip Store</b> — <code>DRIPSTORE_API_TOKEN</code> <%= integrations && integrations.dripstore ? 'terisi' : 'belum diisi' %> <span class="text-zinc-600">(opsional <code>DRIPSTORE_API_URL</code>)</span></div>
-            <div><%= integrations && integrations.ghostseller ? '✅' : '❌' %> <b>Ghostseller</b> — <code>GHOSTSELLER_API_KEY</code> <%= integrations && integrations.ghostseller ? 'terisi' : 'belum diisi' %> <span class="text-zinc-600">(opsional <code>GHOSTSELLER_API_URL</code>)</span></div>
-            <div><%= integrations && integrations.gneseller ? '✅' : '❌' %> <b>Gneseller</b> — <code>GNESELLER_API_KEY</code> + <code>GNESELLER_API_URL</code> <%= integrations && integrations.gneseller ? 'terisi' : 'belum diisi' %> <span class="text-zinc-600">(URL = domain panel Gneseller)</span></div>
-            <div class="text-zinc-600">Ubah di Vercel → Environment Variables, lalu Redeploy.</div>
+        <p class="text-[11px] text-zinc-500 mb-3">Kalau stok key lokal habis, key diambil otomatis dari provider saat pembayaran lunas (saldo akun provider dipotong). Provider &amp; pemetaan durasi diatur per produk: <b>Produk → Edit → Auto-Restock</b>. Kredensial diisi di bawah ini.</p>
+        <div class="space-y-2 mb-3">
+            <% [['gneseller','Gneseller','API Key (gs_partner_...)','URL panel Gneseller, mis. https://xxx.vercel.app',true],['ghostseller','Ghostseller','API Key (gs_partner_...)','URL (kosong = bawaan https://www.ghostseller.my.id)',false],['dripstore','Drip Store','API Token','URL (kosong = bawaan)',false]].forEach(function(p){ var info = (typeof providerInfo !== 'undefined' && providerInfo[p[0]]) || {}; %>
+            <div class="rounded-xl p-3 text-[11px]" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);">
+                <div class="mb-2"><span id="provSt_<%= p[0] %>"><%= info.configured ? '✅' : '❌' %></span> <b><%= p[1] %></b> <span id="provMask_<%= p[0] %>" class="text-zinc-500"><%= info.keyMask ? ('· key ' + info.keyMask + (info.source === 'env' ? ' (dari env)' : '')) : '· belum diisi' %></span></div>
+                <input type="password" id="provKey_<%= p[0] %>" autocomplete="off" class="hm-input text-xs mb-1.5" placeholder="<%= p[2] %><%= info.configured ? ' — sudah terisi, kosongkan bila tidak diganti' : '' %>">
+                <input type="text" id="provUrl_<%= p[0] %>" autocomplete="off" class="hm-input text-xs mb-1.5" value="<%= info.url || '' %>" placeholder="<%= p[3] %>">
+                <div class="flex gap-2">
+                    <button type="button" onclick="saveProvider('<%= p[0] %>')" class="flex-1 py-2 rounded-xl text-xs font-bold text-white" style="background:linear-gradient(135deg,#0891b2,#06b6d4);">Simpan <%= p[1] %></button>
+                    <button type="button" onclick="saveProvider('<%= p[0] %>', true)" class="px-3 py-2 rounded-xl text-xs font-bold text-red-400 border border-red-500/30">Hapus</button>
+                </div>
+            </div>
+            <% }); %>
+            <div class="text-[10px] text-zinc-600">Disimpan di database panel (tidak perlu env Vercel). Env lama tetap dipakai kalau panel kosong.</div>
         </div>
         <div class="flex gap-2">
             <button type="button" onclick="testProvider('dripstore')" class="flex-1 py-2 rounded-xl text-xs font-bold text-zinc-400 border border-white/10 bg-white/3 hover:bg-white/8 transition-all flex items-center justify-center gap-1.5"><iconify-icon icon="mdi:wifi-check"></iconify-icon> Tes Drip Store</button>
@@ -1754,6 +1762,16 @@ function copyProbe() {
     const out = document.getElementById('probeOut');
     out.select();
     (navigator.clipboard ? navigator.clipboard.writeText(out.value) : Promise.reject()).then(() => toast('Hasil disalin', 'success')).catch(() => { document.execCommand('copy'); toast('Hasil disalin', 'success'); });
+}
+async function saveProvider(prov, clear) {
+    if (clear && !confirm('Hapus kredensial ' + prov + ' yang tersimpan di panel?')) return;
+    const keyEl = document.getElementById('provKey_' + prov), urlEl = document.getElementById('provUrl_' + prov);
+    const d = await api('/admin/settings/provider-save', clear ? { provider: prov, clear: true } : { provider: prov, apiKey: keyEl.value, url: urlEl.value });
+    if (!d.success) return toast(d.message || 'Gagal menyimpan', 'error');
+    keyEl.value = ''; if (clear) urlEl.value = '';
+    document.getElementById('provSt_' + prov).textContent = d.configured ? '✅' : '❌';
+    document.getElementById('provMask_' + prov).textContent = d.keyMask ? '· key ' + d.keyMask : '· belum diisi';
+    toast(clear ? 'Kredensial dihapus' : (d.configured ? 'Tersimpan — tekan Tes untuk cek koneksi' : 'Tersimpan, tapi masih ada yang kurang (key/URL)'), d.configured || clear ? 'success' : 'error');
 }
 async function testProvider(prov) {
     const box = document.getElementById('gsTestResult');
